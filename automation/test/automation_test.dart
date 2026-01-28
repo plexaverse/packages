@@ -1,9 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:realtime_tester/realtime_tester.dart';
+import 'package:automation/automation.dart';
 
 void main() {
   test('Registering a test adds it to the registry', () {
-    final registry = RealtimeTesterRegistry.instance;
+    final registry = AutomationRegistry.instance;
     final initialLength = registry.tests.length;
 
     registry.registerTest(

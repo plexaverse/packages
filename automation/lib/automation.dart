@@ -6,11 +6,11 @@ export 'src/test_registry.dart';
 export 'src/interaction_engine.dart';
 
 /// A wrapper widget that adds the Realtime Inspector overlay to the app.
-class RealtimeInspectorWrapper extends StatelessWidget {
+class AutomationInspectorWrapper extends StatelessWidget {
   final Widget child;
   final bool enabled;
 
-  const RealtimeInspectorWrapper({
+  const AutomationInspectorWrapper({
     super.key,
     required this.child,
     this.enabled = true,
@@ -26,7 +26,7 @@ class RealtimeInspectorWrapper extends StatelessWidget {
         children: [
           child,
           const Positioned.fill(
-            child: RealtimeInspectorOverlay(),
+            child: AutomationInspectorOverlay(),
           ),
         ],
       ),

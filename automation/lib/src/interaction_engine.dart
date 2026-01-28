@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 
-class RealtimeInteractionEngine {
-  static final RealtimeInteractionEngine instance = RealtimeInteractionEngine._();
-  RealtimeInteractionEngine._();
+class AutomationEngine {
+  static final AutomationEngine instance = AutomationEngine._();
+  AutomationEngine._();
 
   /// Callback for when an interaction occurs (used for UI highlighting).
   void Function(Offset position)? onInteraction;

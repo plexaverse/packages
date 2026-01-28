@@ -25,9 +25,9 @@ class TestCase {
 }
 
 /// Singleton registry for real-time tests.
-class RealtimeTesterRegistry {
-  RealtimeTesterRegistry._();
-  static final RealtimeTesterRegistry instance = RealtimeTesterRegistry._();
+class AutomationRegistry {
+  AutomationRegistry._();
+  static final AutomationRegistry instance = AutomationRegistry._();
 
   final List<TestCase> _tests = [];
   List<TestCase> get tests => List.unmodifiable(_tests);

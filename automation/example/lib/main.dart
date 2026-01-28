@@ -1,51 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:realtime_tester/realtime_tester.dart';
+import 'package:automation/automation.dart';
 import 'package:go_router/go_router.dart';
+import 'app_tests.dart';
 
 void main() {
-  // Register a complex multi-page test
-  RealtimeTesterRegistry.instance.registerTest(
-    name: 'End-to-End Profile Test',
-    steps: [
-      TestStep(
-        description: 'Check if we are on Home',
-        action: () async {
-          await RealtimeInteractionEngine.instance.waitForWidget(const Key('start_form_btn'));
-        },
-      ),
-      TestStep(
-        description: 'Navigate to Form',
-        action: () async {
-          await RealtimeInteractionEngine.instance.tap(const Key('start_form_btn'));
-        },
-      ),
-      TestStep(
-        description: 'Enter Name: Antigravity',
-        action: () async {
-          await RealtimeInteractionEngine.instance.enterText(const Key('name_field'), 'Antigravity');
-        },
-      ),
-      TestStep(
-        description: 'Enter Email: ai@google.com',
-        action: () async {
-          await RealtimeInteractionEngine.instance.enterText(const Key('email_field'), 'ai@google.com');
-        },
-      ),
-      TestStep(
-        description: 'Submit Profile',
-        action: () async {
-          await RealtimeInteractionEngine.instance.tap(const Key('submit_btn'));
-        },
-      ),
-      TestStep(
-        description: 'Verify Success Screen',
-        action: () async {
-          await RealtimeInteractionEngine.instance.waitForWidget(const Key('success_icon'));
-        },
-      ),
-    ],
-  );
-
+  registerAppTests();
   runApp(const MyApp());
 }
 
@@ -80,7 +39,7 @@ class MyApp extends StatelessWidget {
         useMaterial3: true,
       ),
       builder: (context, child) {
-        return RealtimeInspectorWrapper(
+        return AutomationInspectorWrapper(
           child: child!,
         );
       },
