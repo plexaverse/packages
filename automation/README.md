@@ -200,6 +200,27 @@ Verify your app state with `Expect`:
 - `Expect.text(finder, 'Hello')`: Fails if widget doesn't have that text.
 - `Expect.absent(finder)`: Fails if widget IS on screen.
 
+## 🚀 CI/CD & Headless Mode
+
+To run tests automatically (e.g., in a CI pipeline), use the `AutomationController`:
+
+```dart
+void main() async {
+  // ... Registration of tests ...
+  
+  runApp(const MyApp());
+  
+  // Trigger tests after a delay
+  Future.delayed(const Duration(seconds: 2), () async {
+    final passed = await AutomationController.instance.runAllTests();
+    // Communicate result to CI/CD (e.g. exit(passed ? 0 : 1))
+    // Note: 'exit' requires dart:io
+  });
+}
+```
+
+The controller prints results to the console in a readable format.
+
 ### Best Practices
 
 - Keep your tests in a separate file (e.g., `app_tests.dart`) and call a function like `registerAppTests()` in `main()`.
