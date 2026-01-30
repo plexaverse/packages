@@ -9,13 +9,13 @@ void registerAppTests() {
       TestStep(
         description: 'Check if we are on Home',
         action: () async {
-          await AutomationEngine.instance.waitForWidget(const Key('start_form_btn'));
+          await AutomationEngine.instance.waitFor(const Key('start_form_btn'));
         },
       ),
       TestStep(
         description: 'Navigate to Form',
         action: () async {
-          await AutomationEngine.instance.tap(const Key('start_form_btn'));
+          await AutomationEngine.instance.tap(find.byKey(const Key('start_form_btn')));
         },
       ),
       TestStep(
@@ -39,7 +39,7 @@ void registerAppTests() {
       TestStep(
         description: 'Verify Success Screen',
         action: () async {
-          await AutomationEngine.instance.waitForWidget(const Key('success_icon'));
+          await AutomationEngine.instance.waitFor(const Key('success_icon'));
         },
       ),
     ],

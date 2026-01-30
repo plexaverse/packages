@@ -133,6 +133,7 @@ void main() {
       TestStep(
         description: 'Tap email field',
         action: () async {
+          // You can use Keys...
           await AutomationEngine.instance.tap(const Key('email_input'));
         },
       ),
@@ -141,15 +142,24 @@ void main() {
       TestStep(
         description: 'Type hello',
         action: () async {
-          await AutomationEngine.instance.enterText(const Key('email_input'), 'hello@world.com');
+          // ...or use the handy 'find' API!
+          await AutomationEngine.instance.enterText(find.byKey(const Key('email_input')), 'hello@world.com');
         },
       ),
       
-      // Step 3: Tap the button
+      // Step 3: Scroll comfortably to the button if needed
+      TestStep(
+        description: 'Scroll to Login',
+        action: () async {
+          await AutomationEngine.instance.scrollUntilVisible(find.byText('Login'));
+        },
+      ),
+
+      // Step 4: Tap the button by text
       TestStep(
         description: 'Tap Login',
         action: () async {
-          await AutomationEngine.instance.tap(const Key('my_login_button'));
+          await AutomationEngine.instance.tap(find.byText('Login'));
         },
       ),
     ],

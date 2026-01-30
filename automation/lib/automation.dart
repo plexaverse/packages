@@ -5,6 +5,7 @@ import 'src/inspector_ui.dart';
 
 export 'src/test_registry.dart';
 export 'src/interaction_engine.dart';
+export 'src/finders.dart';
 
 /// A wrapper widget that adds the Realtime Inspector overlay to the app.
 class AutomationInspectorWrapper extends StatelessWidget {
