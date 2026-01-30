@@ -115,7 +115,7 @@ class AutomationEngine {
     for (int i = 0; i < maxScrolls; i++) {
         if (_elementExistsAndVisible(targetFinder)) return;
         
-        final position = scrollState.position;
+        final position = scrollState!.position;
         if (position.pixels >= position.maxScrollExtent) {
            // Reached bottom, maybe try scrolling UP? 
            // For now, let's assume looking DOWN.
@@ -186,10 +186,14 @@ class AutomationEngine {
 
   void _triggerEnterText(Widget widget, String text) {
      if (widget is TextField) {
-      widget.controller?.text = text;
+      if (widget.controller != null) {
+        widget.controller!.text = text;
+      }
       widget.onChanged?.call(text);
     } else if (widget is TextFormField) {
-      widget.controller?.text = text;
+      if (widget.controller != null) {
+        widget.controller!.text = text;
+      }
       widget.onChanged?.call(text);
     }
   }
@@ -223,6 +227,14 @@ class AutomationEngine {
     return found;
   }
     
+  // --- Public Headers for internal libraries (like Expect) ---
+  
+  AutomationFinder toFinderPublic(dynamic target) => _toFinder(target);
+  
+  Element? findFirstElementPublic(AutomationFinder finder) => _findFirstElement(finder);
+  
+  bool isVisiblePublic(Element element) => _isVisible(element);
+
   Future<void> pumpAndSettle({Duration duration = const Duration(milliseconds: 500)}) async {
     await Future.delayed(duration);
   }

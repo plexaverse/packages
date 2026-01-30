@@ -192,6 +192,14 @@ The `AutomationEngine` has these helpful methods:
 - `waitForWidget(Key key, {Duration timeout})`: Waits until a widget appears (useful for loading screens).
 - `pumpAndSettle()`: Waits for animations to finish.
 
+### Assertions
+
+Verify your app state with `Expect`:
+
+- `Expect.visible(finder)`: Fails if widget is not on screen.
+- `Expect.text(finder, 'Hello')`: Fails if widget doesn't have that text.
+- `Expect.absent(finder)`: Fails if widget IS on screen.
+
 ### Best Practices
 
 - Keep your tests in a separate file (e.g., `app_tests.dart`) and call a function like `registerAppTests()` in `main()`.
