@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'dart:ui';
 import 'test_registry.dart';
 import 'interaction_engine.dart';
+import 'reporter.dart';
 
 class AutomationInspectorOverlay extends StatefulWidget {
   const AutomationInspectorOverlay({super.key});
@@ -175,12 +176,14 @@ class _AutomationInspectorOverlayState extends State<AutomationInspectorOverlay>
     );
   }
 
+  int _selectedTabIndex = 0; // 0: Tests, 1: History
+
   Widget _buildExpandedMenu() {
     return Container(
-      width: 300,
+      width: 320,
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.85),
+        color: Colors.white.withOpacity(0.95),
         borderRadius: BorderRadius.circular(24),
         border: Border.all(color: Colors.white.withOpacity(0.4), width: 1.5),
         boxShadow: [
@@ -198,47 +201,119 @@ class _AutomationInspectorOverlayState extends State<AutomationInspectorOverlay>
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [Colors.green.shade800, Colors.green.shade500],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                ),
-                child: const Row(
-                  children: [
-                    Icon(Icons.terminal_rounded, color: Colors.white, size: 24),
-                    SizedBox(width: 12),
-                    Text(
-                      'Automation Test Cases',
-                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 20, letterSpacing: 0.5),
-                    ),
-                  ],
-                ),
-              ),
+              _buildHeaderTabs(),
               ConstrainedBox(
                 constraints: const BoxConstraints(maxHeight: 350),
-                child: ListView.builder(
-                  shrinkWrap: true,
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  itemCount: AutomationRegistry.instance.tests.length,
-                  itemBuilder: (context, index) {
-                    final test = AutomationRegistry.instance.tests[index];
-                    return _buildTestItem(test);
-                  },
-                ),
+                child: _selectedTabIndex == 0 ? _buildTestsList() : _buildHistoryList(),
               ),
-              if (AutomationRegistry.instance.tests.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.all(40),
-                  child: Text('No tests found', style: TextStyle(color: Colors.grey, fontWeight: FontWeight.w500)),
-                ),
             ],
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildHeaderTabs() {
+    return Container(
+      padding: const EdgeInsets.all(4),
+      margin: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.grey.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        children: [
+          _buildTabItem('Test Cases', 0),
+          _buildTabItem('History', 1),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTabItem(String title, int index) {
+    final isSelected = _selectedTabIndex == index;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => setState(() => _selectedTabIndex = index),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          decoration: BoxDecoration(
+            color: isSelected ? Colors.green : Colors.transparent,
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: isSelected ? [BoxShadow(color: Colors.green.withOpacity(0.3), blurRadius: 8, offset: const Offset(0, 2))] : null,
+          ),
+          child: Text(
+            title,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: isSelected ? Colors.white : Colors.black54,
+              fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+              fontSize: 14,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTestsList() {
+    final tests = AutomationRegistry.instance.tests;
+    if (tests.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.all(40),
+        child: Text('No tests found', style: TextStyle(color: Colors.grey, fontWeight: FontWeight.w500)),
+      );
+    }
+    return ListView.builder(
+      shrinkWrap: true,
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      itemCount: tests.length,
+      itemBuilder: (context, index) => _buildTestItem(tests[index]),
+    );
+  }
+
+  Widget _buildHistoryList() {
+    final results = TestReporter.instance.results; // Make sure reporter.dart exposes this!
+    if (results.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.all(40),
+        child: Text('No history yet', style: TextStyle(color: Colors.grey, fontWeight: FontWeight.w500)),
+      );
+    }
+    return ListView.builder(
+      shrinkWrap: true,
+      reverse: true, // Show newest first
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      itemCount: results.length,
+      itemBuilder: (context, index) {
+        final result = results[index];
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+          child: Row(
+            children: [
+              Icon(
+                result.success ? Icons.check_circle : Icons.cancel,
+                color: result.success ? Colors.green : Colors.red,
+                size: 20,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(result.testName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                    Text(
+                      '${result.durationMs}ms • ${result.timestamp.split("T").last.split(".").first}',
+                      style: TextStyle(color: Colors.black.withOpacity(0.5), fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -390,22 +465,37 @@ class _AutomationInspectorOverlayState extends State<AutomationInspectorOverlay>
       for (var s in test.steps) s.status = TestStatus.pending;
     });
 
+    final stopwatch = Stopwatch()..start();
+    TestReporter.instance.onTestStart(test);
+
+    bool allPassed = true;
     for (int i = 0; i < test.steps.length; i++) {
-      if (!mounted) break;
+      if (!mounted) { allPassed = false; break; }
+      
+      final step = test.steps[i];
       setState(() {
         _currentStepIndex = i;
-        test.steps[i].status = TestStatus.running;
+        step.status = TestStatus.running;
       });
 
+      final stepWatch = Stopwatch()..start();
       try {
-        await test.steps[i].action();
-        if (mounted) setState(() => test.steps[i].status = TestStatus.passed);
-      } catch (e) {
-        if (mounted) setState(() => test.steps[i].status = TestStatus.failed);
+        await step.action();
+        stepWatch.stop();
+        if (mounted) setState(() => step.status = TestStatus.passed);
+        TestReporter.instance.onTestStepPassed(test, step, stepWatch.elapsed);
+      } catch (e, stack) {
+        stepWatch.stop();
+        if (mounted) setState(() => step.status = TestStatus.failed);
+        TestReporter.instance.onTestStepFailed(test, step, e, stack);
+        allPassed = false;
         break;
       }
       await Future.delayed(const Duration(milliseconds: 1000));
     }
+
+    stopwatch.stop();
+    TestReporter.instance.onTestComplete(test, allPassed, stopwatch.elapsed);
 
     await Future.delayed(const Duration(seconds: 3));
     if (mounted) {
