@@ -13,6 +13,7 @@ If you are new to testing or Flutter, don't worry. This guide will walk you thro
 - [Setup](#setup)
 - [Writing Your First Test](#writing-your-first-test)
 - [Running Tests](#running-tests)
+- [Smart Features](#smart-features)
 - [For Advanced Users](#for-advanced-users)
 
 ---
@@ -21,145 +22,76 @@ If you are new to testing or Flutter, don't worry. This guide will walk you thro
 
 Imagine you have a robot finger that can tap buttons and type text on your phone. This package gives you that robot finger! 🤖
 
-- **It runs inside your app**: You don't need complicated computer setups.
-- **It shows you what's happening**: You'll see ripples and highlights where the "robot" touches.
-- **It has a cool menu**: A floating button lets you pick which test to run.
+- **It runs inside your app**: You don't need complicated computer setups or external drivers.
+- **Visual Feedback**: You'll see ripples and highlights where the "robot" touches.
+- **Interactive UI**: A floating green wand icon lets you pick and run tests directly on-device.
+- **CI/CD Ready**: Supports headless execution for automated testing pipelines.
 
 ---
 
 ## Installation
 
-First, we need to add this package to your project.
-
-1.  Open your project folder.
-2.  Find the file named `pubspec.yaml` (it's in the main folder).
-3.  Add `automation` under `dependencies`:
+1.  Open your `pubspec.yaml`.
+2.  Add `automation` under `dependencies`:
 
 ```yaml
 dependencies:
-  flutter:
-    sdk: flutter
-  
-  # Add this line:
   automation:
-    path: ../automation  # (Or use the version from pub.dev if published)
+    path: path/to/automation
 ```
 
-4.  Save the file and run `flutter pub get` in your terminal to download it.
+3.  Run `flutter pub get`.
 
 ---
 
 ## Setup
 
-Now, let's turn on the automation tool in your app.
-
-1.  Open your `lib/main.dart` file.
-2.  Import the package at the top:
+Wrap your `MaterialApp` with `AutomationInspectorWrapper`:
 
 ```dart
 import 'package:automation/automation.dart';
-```
 
-3.  Find your `MaterialApp`. You need to wrap it (or your main screen) with `AutomationInspectorWrapper`.
-
-**Example:**
-
-```dart
 void main() {
-  runApp(const MyApp());
-}
-
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    // 1. Wrap your app in the AutomationInspectorWrapper
-    return AutomationInspectorWrapper(
-      child: MaterialApp(
-        title: 'My App',
-        home: const HomeScreen(),
-      ),
-    );
-  }
+  runApp(
+    AutomationInspectorWrapper(
+      child: MyApp(),
+    ),
+  );
 }
 ```
-
-That's it! When you run your app now, you should see a **green wand icon** floating at the bottom. 🪄
 
 ---
 
 ## Writing Your First Test
 
-Let's tell the robot what to do. We call these "Tests".
-
-A test is just a list of steps, like:
-1.  "Wait for the login button."
-2.  "Type 'hello' in the email box."
-3.  "Tap 'Login'."
-
-To find widgets (buttons, text fields), we give them a `Key`. A Key is like a nametag.
-
-### Step 1: Add Keys to your Widgets
-
-Go to the screen you want to test and add keys to the widgets you want to interact with.
+### 1. Add Keys to your Widgets
+Use `Key` to identify widgets you want to test.
 
 ```dart
-// Adding a key to a Button
-ElevatedButton(
-  key: const Key('my_login_button'), // <--- The Nametag
-  onPressed: () {},
-  child: const Text('Login'),
-)
-
-// Adding a key to a TextField
 TextField(
-  key: const Key('email_input'),    // <--- The Nametag
-  decoration: const InputDecoration(labelText: 'Email'),
+  key: const Key('username_field'),
+  decoration: InputDecoration(labelText: 'Username'),
 )
 ```
 
-### Step 2: Create the Test
-
-In your `main()` function (or a separate file), tell the `AutomationRegistry` about your test.
+### 2. Register the Test
+Register your tests **before** calling `runApp()`.
 
 ```dart
 void main() {
-  // Register your test BEFORE runApp
   AutomationRegistry.instance.registerTest(
-    name: 'My First Test',
+    name: 'Login Test',
     steps: [
-      // Step 1: Tap the email field
       TestStep(
-        description: 'Tap email field',
+        description: 'Enter username',
         action: () async {
-          // You can use Keys...
-          await AutomationEngine.instance.tap(const Key('email_input'));
+          await AutomationEngine.instance.enterText(const Key('username_field'), 'tester');
         },
       ),
-      
-      // Step 2: Type some text
       TestStep(
-        description: 'Type hello',
+        description: 'Tap login',
         action: () async {
-          // ...or use the handy 'find' API!
-          await AutomationEngine.instance.enterText(find.byKey(const Key('email_input')), 'hello@world.com');
-        },
-      ),
-      
-      // Step 3: Scroll comfortably to the button if needed
-      TestStep(
-        description: 'Scroll to Login',
-        action: () async {
-          await AutomationEngine.instance.scrollUntilVisible(find.byText('Login'));
-        },
-      ),
-
-      // Step 4: Tap the button by text
-      TestStep(
-        description: 'Tap Login',
-        action: () async {
-          await AutomationEngine.instance.tap(find.byText('Login'));
+          await AutomationEngine.instance.tap(find.byText('LOGIN'));
         },
       ),
     ],
@@ -171,60 +103,43 @@ void main() {
 
 ---
 
-## Running Tests
+## Smart Features
 
-1.  Run your app on a Simulator or real phone (`flutter run`).
-2.  Tap the **Green Wand Icon** 🪄 at the bottom of the screen.
-3.  You will see a menu "Automation Test Cases".
-4.  Tap the **Play Button** ▶️ next to "My First Test".
-5.  Watch your app drive itself! 🚗💨
+### 🕒 Dynamic Waiting
+The package doesn't use static "sleep" times. The `waitFor` mechanism (used internally by `tap` and `enterText`) polls the widget tree every 200ms and proceeds **immediately** when the widget appears. This makes tests fast and reliable.
+
+### 📜 Smart Scrolling
+Use `scrollUntilVisible()` to find widgets hidden in long lists.
+```dart
+await AutomationEngine.instance.scrollUntilVisible(find.byText('Item 42'));
+```
+It automatically finds the largest vertical scrollable area and scrolls incrementally until the target is found and visible.
+
+### 🔍 Powerful Finders
+- `find.byKey(Key)`
+- `find.byText(String)`
+- `find.byIcon(IconData)`
+- `find.byType(Type)`
+- `find.descendant(of: ..., matching: ...)`
 
 ---
 
 ## For Advanced Users
 
-### The API
+### Assertions (Expect)
+Verify UI state during tests:
+- `Expect.visible(target)`: Fails if widget is missing or clipped.
+- `Expect.absent(target)`: Fails if widget is visible.
+- `Expect.text(target, 'val')`: Fails if text doesn't match exactly.
 
-The `AutomationEngine` has these helpful methods:
-
-- `tap(Key key)`: Taps a widget.
-- `enterText(Key key, String text)`: Types text into a field.
-- `waitForWidget(Key key, {Duration timeout})`: Waits until a widget appears (useful for loading screens).
-- `pumpAndSettle()`: Waits for animations to finish.
-
-### Assertions
-
-Verify your app state with `Expect`:
-
-- `Expect.visible(finder)`: Fails if widget is not on screen.
-- `Expect.text(finder, 'Hello')`: Fails if widget doesn't have that text.
-- `Expect.absent(finder)`: Fails if widget IS on screen.
-
-## 🚀 CI/CD & Headless Mode
-
-To run tests automatically (e.g., in a CI pipeline), use the `AutomationController`:
-
+### Headless Mode (CI/CD)
+Run all tests programmatically:
 ```dart
-void main() async {
-  // ... Registration of tests ...
-  
-  runApp(const MyApp());
-  
-  // Trigger tests after a delay
-  Future.delayed(const Duration(seconds: 2), () async {
-    final passed = await AutomationController.instance.runAllTests();
-    // Communicate result to CI/CD (e.g. exit(passed ? 0 : 1))
-    // Note: 'exit' requires dart:io
-  });
-}
+final passed = await AutomationController.instance.runAllTests();
 ```
 
-The controller prints results to the console in a readable format.
-
-### Best Practices
-
-- Keep your tests in a separate file (e.g., `app_tests.dart`) and call a function like `registerAppTests()` in `main()`.
-- Use descriptive names for your Keys so you remember what they are.
+### Configuration
+You can adjust the delay between steps in `inspector_ui.dart` (standard is ~250ms - 2500ms depending on your preference for watching the UI).
 
 ---
 

@@ -491,7 +491,7 @@ class _AutomationInspectorOverlayState extends State<AutomationInspectorOverlay>
         allPassed = false;
         break;
       }
-      await Future.delayed(const Duration(milliseconds: 1000));
+      await Future.delayed(const Duration(milliseconds: 2500));
     }
 
     stopwatch.stop();
