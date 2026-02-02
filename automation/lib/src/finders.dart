@@ -72,11 +72,11 @@ class TextFinder extends AutomationFinder {
     final List<Element> found = [];
     void visitor(Element element) {
       final widget = element.widget;
-      if (widget is Text && (widget.data?.contains(text) ?? false)) {
+      if (widget is Text && widget.data == text) {
         found.add(element);
       } else if (widget is RichText) {
-        // Simple extraction for RichText
-        if (widget.text.toPlainText().contains(text)) {
+        // Exact match for RichText
+        if (widget.text.toPlainText() == text) {
           found.add(element);
         }
       }

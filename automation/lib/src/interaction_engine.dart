@@ -27,15 +27,32 @@ class AutomationEngine {
     final element = _findFirstElement(finder);
     if (element == null) throw Exception('Widget not found for $finder');
 
-    // Find tappable descendant or self
-    final tappable = _findFirstDescendant(element, (e) => _isTappable(e) && _isVisible(e));
-     if (tappable == null) {
-      // Try to tap the element itself if visible, even if not strictly "tappable" by our definition
-      if (_isVisible(element)) {
-         await _highlightAndTap(element);
-         return;
+    // 1. Check if the element itself is tappable
+    Element? tappableElement;
+    if (_isTappable(element)) {
+      tappableElement = element;
+    } else {
+      // 2. Look UP for a tappable ancestor that has a callback
+      element.visitAncestorElements((ancestor) {
+        if (_isTappable(ancestor) && _hasTapCallback(ancestor.widget)) {
+          tappableElement = ancestor;
+          return false; // Stop visiting
+        }
+        return true;
+      });
+      
+      // 3. If still not found, Look DOWN (legacy behavior)
+      if (tappableElement == null) {
+        tappableElement = _findFirstDescendant(element, (e) => _isTappable(e) && _isVisible(e) && _hasTapCallback(e.widget));
       }
-      throw Exception('Widget found but not tappable/visible: $finder');
+    }
+
+    final tappable = tappableElement;
+    if (tappable == null) {
+       throw Exception('Widget found but no tappable ancestor or descendant found: $finder.');
+    }
+    if (!_isVisible(tappable)) {
+       throw Exception('Widget found but not visible: $finder.');
     }
 
     await _highlightAndTap(tappable);
@@ -48,6 +65,7 @@ class AutomationEngine {
       onInteraction?.call(position);
       await Future.delayed(const Duration(milliseconds: 300));
     }
+    
     _triggerTap(element.widget);
   }
 
@@ -59,34 +77,52 @@ class AutomationEngine {
     final root = _findFirstElement(finder);
     if (root == null) throw Exception('Widget not found for $finder');
 
-    final editable = _findFirstDescendant(root, (e) => _isEditable(e) && _isVisible(e));
-    if (editable == null) throw Exception('No editable widget found for $finder');
+    // Find the EditableText descendant.
+    final editableElement = _findFirstDescendant(root, (e) => e.widget is EditableText && _isVisible(e));
+    
+    final editable = editableElement;
+    if (editable == null) throw Exception('No EditableText widget found inside $finder. Ensure you are targeting a TextField or TextFormField.');
 
-    final renderBox = editable.renderObject as RenderBox?;
-     if (renderBox != null) {
+    await _highlightAndEnterText(editable, text);
+  }
+
+  Future<void> _highlightAndEnterText(Element element, String text) async {
+     final renderBox = element.renderObject as RenderBox?;
+    if (renderBox != null) {
       final position = renderBox.localToGlobal(renderBox.size.center(Offset.zero));
       onInteraction?.call(position);
       await Future.delayed(const Duration(milliseconds: 300));
     }
     
-    _triggerEnterText(editable.widget, text);
+    final widget = element.widget as EditableText;
+    widget.controller.text = text;
+    widget.onChanged?.call(text);
   }
 
   /// Scrolls until the [target] is visible.
-  /// 
-  /// Currently supports vertical scrolling in the first found Scrollable ancestor.
   Future<void> scrollUntilVisible(dynamic target, {
     dynamic scrollable,
     double step = 300.0, 
-    int maxScrolls = 20,
-    Duration duration = const Duration(milliseconds: 50)
+    int maxScrolls = 60, 
+    Duration duration = const Duration(milliseconds: 100)
   }) async {
     final targetFinder = _toFinder(target);
     
-    // Check if already visible
-    if (_elementExistsAndVisible(targetFinder)) return;
+    debugPrint('[Automation] scrollUntilVisible: looking for $targetFinder');
 
-    // Find scrollable
+    final existingElement = _findFirstElement(targetFinder);
+    if (existingElement != null) {
+      debugPrint('[Automation] Found element: ${existingElement.widget.runtimeType}');
+      final visible = _isVisible(existingElement);
+      debugPrint('[Automation] Is visible: $visible');
+      if (visible) {
+        debugPrint('[Automation] target already visible');
+        return;
+      }
+    } else {
+      debugPrint('[Automation] Element not found in tree, will scroll to find it');
+    }
+
     ScrollableState? scrollState;
     if (scrollable != null) {
       final scrollableFinder = _toFinder(scrollable);
@@ -95,53 +131,107 @@ class AutomationEngine {
         scrollState = Scrollable.of(element);
       }
     } else {
-      // Try to find a PrimaryScrollController or fallback to the first Scrollable in view
-      // This is tricky from "outside". Let's look for any Scrollable in the tree.
-      // For simplicity in this version, we require 'scrollable' or we search for the biggest ScrollView.
-      // Fallback: use rootElement to find first Scrollable.
+      // Find the "best" vertical scrollable (the one with the largest scroll extent)
+      debugPrint('[Automation] Looking for scrollable widgets in tree...');
+      ScrollableState? bestScrollable;
+      double largestExtent = -1.0;
+      int elementCount = 0;
+
       void visitor(Element e) {
-        if (scrollState != null) return;
+        elementCount++;
+        // Skip only the overlay part of the automation inspector, not the wrapper
+        final widgetTypeName = e.widget.runtimeType.toString();
+        if (widgetTypeName == 'AutomationInspectorOverlay' || 
+            widgetTypeName == '_AutomationInspectorOverlayState' ||
+            widgetTypeName.startsWith('_AutomationInspector')) {
+          return; // Skip this subtree
+        }
+
+        final widgetType = e.widget.runtimeType.toString();
+        // Log potential scrollable-related widgets
+        if (widgetType.contains('Scroll') || widgetType.contains('List') || widgetType.contains('View')) {
+          debugPrint('[Automation] Checking widget: $widgetType');
+        }
+
         if (e.widget is Scrollable) {
-           scrollState = (e as StatefulElement).state as ScrollableState;
+          debugPrint('[Automation] Found Scrollable widget: ${e.widget.runtimeType}');
+          
+          if (e is StatefulElement) {
+            final state = e.state;
+            if (state is ScrollableState) {
+              debugPrint('[Automation] Scrollable axis: ${state.widget.axis}');
+              if (state.widget.axis == Axis.vertical) {
+                try {
+                  if (state.position.hasPixels) {
+                    final extent = state.position.maxScrollExtent;
+                    debugPrint('[Automation] Scrollable maxExtent: $extent');
+                    if (extent > largestExtent) {
+                      largestExtent = extent;
+                      bestScrollable = state;
+                    }
+                  }
+                } catch (err) {
+                  debugPrint('[Automation] Error getting scroll extent: $err');
+                }
+              }
+            }
+          }
         }
         e.visitChildren(visitor);
       }
       WidgetsBinding.instance.rootElement?.visitChildren(visitor);
+      debugPrint('[Automation] Visited $elementCount elements, bestScrollable: ${bestScrollable != null}');
+      scrollState = bestScrollable;
     }
     
-    if (scrollState == null) throw Exception('No Scrollable found to scroll.');
+    if (scrollState == null) {
+      throw Exception('No vertical Scrollable found to perform scrollUntilVisible.');
+    }
 
-    // Scroll loop
+    final position = scrollState.position;
+    debugPrint('[Automation] Using scrollable with maxExtent: ${position.maxScrollExtent}');
+    
     for (int i = 0; i < maxScrolls; i++) {
-        if (_elementExistsAndVisible(targetFinder)) return;
+        final element = _findFirstElement(targetFinder);
+        if (element != null && _isVisible(element)) {
+           debugPrint('[Automation] Target found in tree and visible. Ensuring visibility...');
+           await Scrollable.ensureVisible(element, duration: const Duration(milliseconds: 200), alignment: 0.5);
+           await Future.delayed(const Duration(milliseconds: 300)); // Wait for animation
+           return;
+        }
         
-        final position = scrollState!.position;
         if (position.pixels >= position.maxScrollExtent) {
-           // Reached bottom, maybe try scrolling UP? 
-           // For now, let's assume looking DOWN.
+           debugPrint('[Automation] Reached bottom of scrollable at ${position.pixels}');
            break;
         }
 
-        final newPos = (position.pixels + step).clamp(position.minScrollExtent, position.maxScrollExtent);
-        position.jumpTo(newPos);
+        final targetScroll = (position.pixels + step).clamp(0.0, position.maxScrollExtent);
+        debugPrint('[Automation] Jumping to $targetScroll (Step $i)');
+        position.jumpTo(targetScroll);
+        
         await Future.delayed(duration);
+        await Future.delayed(const Duration(milliseconds: 50));
     }
     
     if (!_elementExistsAndVisible(targetFinder)) {
-      throw Exception('Could not find $target after scrolling $maxScrolls times.');
+      throw Exception('Could not find $target after scrolling to the bottom (${position.maxScrollExtent}px).');
     }
   }
 
   // --- Finders & Utils ---
 
   Element? _findFirstElement(AutomationFinder finder) {
+    if (WidgetsBinding.instance.rootElement == null) return null;
     final root = WidgetsBinding.instance.rootElement!;
+    
+    // We search the entire tree recursively.
     return finder.findFirst(root);
   }
   
   bool _elementExistsAndVisible(AutomationFinder finder) {
     final element = _findFirstElement(finder);
-    return element != null && _isVisible(element);
+    if (element == null) return false;
+    return _isVisible(element);
   }
 
   Future<void> waitFor(dynamic target, {Duration timeout = const Duration(seconds: 5)}) async {
@@ -154,62 +244,88 @@ class AutomationEngine {
     throw Exception('Timed out waiting for $finder');
   }
 
-   bool _isTappable(Element element) {
+  bool _isTappable(Element element) {
     final widget = element.widget;
-    return widget is FloatingActionButton ||
-           widget is ElevatedButton ||
-           widget is OutlinedButton ||
-           widget is TextButton ||
+    return widget is ButtonStyleButton || 
+           widget is MaterialButton ||
+           widget is FloatingActionButton ||
            widget is IconButton ||
-           widget is GestureDetector ||
            widget is InkWell ||
            widget is InkResponse ||
-           widget is MaterialButton;
+           widget is GestureDetector ||
+           widget is ListTile;
+  }
+
+  /// Checks if a tappable widget actually has a tap callback set.
+  bool _hasTapCallback(Widget widget) {
+    if (widget is ButtonStyleButton) return widget.onPressed != null;
+    if (widget is MaterialButton) return widget.onPressed != null;
+    if (widget is FloatingActionButton) return widget.onPressed != null;
+    if (widget is IconButton) return widget.onPressed != null;
+    if (widget is InkWell) return widget.onTap != null;
+    if (widget is InkResponse) return widget.onTap != null;
+    if (widget is GestureDetector) return widget.onTap != null;
+    if (widget is ListTile) return widget.onTap != null;
+    return false;
   }
 
   void _triggerTap(Widget widget) {
-     // ... (Previous implementation same, just copied for completeness)
-    if (widget is FloatingActionButton) widget.onPressed?.call();
-    else if (widget is ElevatedButton) widget.onPressed?.call();
-    else if (widget is OutlinedButton) widget.onPressed?.call();
-    else if (widget is TextButton) widget.onPressed?.call();
-    else if (widget is IconButton) widget.onPressed?.call();
-    else if (widget is GestureDetector) widget.onTap?.call();
-    else if (widget is InkWell) widget.onTap?.call();
-    else if (widget is InkResponse) widget.onTap?.call();
-    else if (widget is MaterialButton) widget.onPressed?.call();
-  }
-
-  bool _isEditable(Element element) {
-    return element.widget is TextField || element.widget is TextFormField;
-  }
-
-  void _triggerEnterText(Widget widget, String text) {
-     if (widget is TextField) {
-      if (widget.controller != null) {
-        widget.controller!.text = text;
-      }
-      widget.onChanged?.call(text);
-    } else if (widget is TextFormField) {
-      if (widget.controller != null) {
-        widget.controller!.text = text;
-      }
-      widget.onChanged?.call(text);
+    bool tapped = false;
+    
+    if (widget is ButtonStyleButton) {
+      if (widget.onPressed != null) { widget.onPressed!(); tapped = true; }
+    } else if (widget is MaterialButton) {
+      if (widget.onPressed != null) { widget.onPressed!(); tapped = true; }
+    } else if (widget is FloatingActionButton) {
+      if (widget.onPressed != null) { widget.onPressed!(); tapped = true; }
+    } else if (widget is IconButton) {
+      if (widget.onPressed != null) { widget.onPressed!(); tapped = true; }
+    } else if (widget is InkWell) {
+      if (widget.onTap != null) { widget.onTap!(); tapped = true; }
+    } else if (widget is InkResponse) {
+      if (widget.onTap != null) { widget.onTap!(); tapped = true; }
+    } else if (widget is GestureDetector) {
+      if (widget.onTap != null) { widget.onTap!(); tapped = true; }
+    } else if (widget is ListTile) {
+      if (widget.onTap != null) { widget.onTap!(); tapped = true; }
+    }
+    
+    if (!tapped) {
+       throw Exception('Failed to tap ${widget.runtimeType}: onPressed/onTap is null or widget type handled incorrectly.');
     }
   }
 
   bool _isVisible(Element element) {
     final renderBox = element.renderObject as RenderBox?;
-    if (renderBox == null || !renderBox.attached || !renderBox.hasSize) return false;
+    if (renderBox == null || !renderBox.attached || !renderBox.hasSize || renderBox.size.isEmpty) return false;
 
     final view = WidgetsBinding.instance.platformDispatcher.views.first;
     final windowSize = view.physicalSize / view.devicePixelRatio;
-    final screenRect = Rect.fromLTWH(0, 0, windowSize.width, windowSize.height);
-    
-    final pos = renderBox.localToGlobal(Offset.zero);
-    final widgetRect = Rect.fromLTWH(pos.dx, pos.dy, renderBox.size.width, renderBox.size.height);
+    Rect visibleArea = Rect.fromLTWH(0, 0, windowSize.width, windowSize.height);
 
-    return screenRect.overlaps(widgetRect);
+    // Initial widget rect in global coords
+    final pos = renderBox.localToGlobal(Offset.zero);
+    final widgetRect = pos & renderBox.size;
+
+    // Check if it's even on the screen generally
+    if (!visibleArea.overlaps(widgetRect)) return false;
+
+    // CLIP CHECK: Walk up the tree and intersect with all viewports
+    RenderObject? ancestor = renderBox.parent as RenderObject?;
+    while (ancestor != null) {
+      if (ancestor is RenderViewportBase) {
+        final Rect viewportGlobalRect = (ancestor as RenderBox).localToGlobal(Offset.zero) & (ancestor as RenderBox).size;
+        visibleArea = visibleArea.intersect(viewportGlobalRect);
+      } else if (ancestor is RenderBox) {
+        // Handle explicit clipping widgets if possible, 
+        // though Viewport is the primary concern for lists.
+      }
+      ancestor = ancestor.parent;
+    }
+
+    // Now check if the widget significantly overlaps the final visible area.
+    // We use a small threshold or center point to be sure it's actually "seeable"
+    return visibleArea.overlaps(widgetRect);
   }
   
   Element? _findFirstDescendant(Element element, bool Function(Element) predicate) {
