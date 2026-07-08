@@ -41,7 +41,7 @@ class AutomationController {
           excludeTags: excludeTags,
           grep: grep,
         ),
-        listeners: [_ReporterBridge(TestReporter.instance)],
+        listeners: [TestReporter.instance],
       );
 
       final results = await runner.run(
@@ -62,31 +62,4 @@ class AutomationController {
       _isRunning = false;
     }
   }
-}
-
-/// Bridges runner progress to the existing [TestReporter] callbacks.
-class _ReporterBridge extends TestRunListener {
-  final TestReporter reporter;
-  _ReporterBridge(this.reporter);
-
-  @override
-  void onTestStart(TestCase test) => reporter.onTestStart(test);
-
-  @override
-  void onStepFinished(TestCase test, StepResult result) {
-    if (result.passed) {
-      reporter.onTestStepPassed(test, result.step, result.duration);
-    } else {
-      reporter.onTestStepFailed(
-        test,
-        result.step,
-        result.error ?? 'unknown error',
-        result.stackTrace ?? StackTrace.current,
-      );
-    }
-  }
-
-  @override
-  void onTestFinished(TestResult result) =>
-      reporter.onTestComplete(result.test, result.passed, result.duration);
 }

@@ -3,6 +3,7 @@ import 'dart:ui';
 import 'test_registry.dart';
 import 'interaction_engine.dart';
 import 'reporter.dart';
+import 'runner.dart';
 
 class AutomationInspectorOverlay extends StatefulWidget {
   const AutomationInspectorOverlay({super.key});
@@ -467,37 +468,29 @@ class _AutomationInspectorOverlayState extends State<AutomationInspectorOverlay>
       }
     });
 
-    final stopwatch = Stopwatch()..start();
-    TestReporter.instance.onTestStart(test);
+    // Drive the SAME TestRunner core the headless controller uses, so behavior
+    // (hooks, timeouts, step semantics) is identical between the UI and CI. A
+    // watchable step delay keeps the on-device run easy to follow. The reporter
+    // records history; the inline listener refreshes the UI as steps progress.
+    final runner = TestRunner(
+      config: const TestRunConfig(
+        stepDelay: Duration(milliseconds: 2500),
+        defaultTimeout: Duration(seconds: 30),
+      ),
+      listeners: [
+        TestReporter.instance,
+        _InspectorRunListener(
+          onStepStarted: (index) {
+            if (mounted) setState(() => _currentStepIndex = index);
+          },
+          onStepDone: () {
+            if (mounted) setState(() {});
+          },
+        ),
+      ],
+    );
 
-    bool allPassed = true;
-    for (int i = 0; i < test.steps.length; i++) {
-      if (!mounted) { allPassed = false; break; }
-      
-      final step = test.steps[i];
-      setState(() {
-        _currentStepIndex = i;
-        step.status = TestStatus.running;
-      });
-
-      final stepWatch = Stopwatch()..start();
-      try {
-        await step.action();
-        stepWatch.stop();
-        if (mounted) setState(() => step.status = TestStatus.passed);
-        TestReporter.instance.onTestStepPassed(test, step, stepWatch.elapsed);
-      } catch (e, stack) {
-        stepWatch.stop();
-        if (mounted) setState(() => step.status = TestStatus.failed);
-        TestReporter.instance.onTestStepFailed(test, step, e, stack);
-        allPassed = false;
-        break;
-      }
-      await Future.delayed(const Duration(milliseconds: 2500));
-    }
-
-    stopwatch.stop();
-    TestReporter.instance.onTestComplete(test, allPassed, stopwatch.elapsed);
+    await runner.run([test], hooks: AutomationRegistry.instance.hooks);
 
     await Future.delayed(const Duration(seconds: 3));
     if (mounted) {
@@ -507,5 +500,19 @@ class _AutomationInspectorOverlayState extends State<AutomationInspectorOverlay>
       });
     }
   }
+}
+
+/// Bridges [TestRunner] progress to inspector UI refreshes.
+class _InspectorRunListener extends TestRunListener {
+  final void Function(int index) onStepStarted;
+  final VoidCallback onStepDone;
+
+  _InspectorRunListener({required this.onStepStarted, required this.onStepDone});
+
+  @override
+  void onStepStart(TestCase test, TestStep step, int index) => onStepStarted(index);
+
+  @override
+  void onStepFinished(TestCase test, StepResult result) => onStepDone();
 }
 
