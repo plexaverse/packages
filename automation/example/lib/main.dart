@@ -1,10 +1,15 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:automation/automation.dart';
 import 'package:go_router/go_router.dart';
 import 'app_tests.dart';
 
 void main() {
-  registerAppTests();
+  // Only register tests (and any credentials they carry) in debug builds, so
+  // they never compile into a release binary.
+  if (kDebugMode) {
+    registerAppTests();
+  }
   runApp(const MyApp());
 }
 

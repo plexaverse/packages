@@ -53,3 +53,9 @@ class AmbiguousMatchException extends AutomationException {
 class AutomationAssertionException extends AutomationException {
   const AutomationAssertionException(super.message);
 }
+
+/// An automation action was attempted while automation is disabled (the
+/// default in release builds). Opt in with `AutomationConfig.enable()`.
+class AutomationDisabledException extends AutomationException {
+  const AutomationDisabledException(super.message);
+}

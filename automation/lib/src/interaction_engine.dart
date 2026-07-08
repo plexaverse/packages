@@ -1,6 +1,7 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'config.dart';
 import 'errors.dart';
 import 'finders.dart';
 
@@ -10,6 +11,16 @@ class AutomationEngine {
 
   /// Callback for when an interaction occurs (used for UI highlighting).
   void Function(Offset position)? onInteraction;
+
+  /// Throws if automation has been disabled for this build (e.g. release).
+  void _ensureEnabled() {
+    if (!AutomationConfig.enabled) {
+      throw const AutomationDisabledException(
+        'Automation is disabled in this build. It is off in release builds by '
+        'default; call AutomationConfig.enable() to opt in.',
+      );
+    }
+  }
 
   /// Helper to convert dynamic target (Key or Finder) to AutomationFinder
   AutomationFinder _toFinder(dynamic target) {
@@ -29,6 +40,7 @@ class AutomationEngine {
   /// another widget). These are re-checked on a poll until [timeout]; on
   /// timeout the most specific failing reason is thrown.
   Future<void> tap(dynamic target, {Duration timeout = const Duration(seconds: 5)}) async {
+    _ensureEnabled();
     final finder = _toFinder(target);
     final deadline = DateTime.now().add(timeout);
 
@@ -178,6 +190,7 @@ class AutomationEngine {
   /// field's submit action (`onSubmitted`/`onEditingComplete`).
   Future<void> enterText(dynamic target, String text,
       {Duration timeout = const Duration(seconds: 5), bool submit = false}) async {
+    _ensureEnabled();
     final finder = _toFinder(target);
     await waitFor(finder, timeout: timeout);
 
@@ -228,8 +241,9 @@ class AutomationEngine {
     int maxScrolls = 60, 
     Duration duration = const Duration(milliseconds: 100)
   }) async {
+    _ensureEnabled();
     final targetFinder = _toFinder(target);
-    
+
     debugPrint('[Automation] scrollUntilVisible: looking for $targetFinder');
 
     final existingElement = _findFirstElement(targetFinder);

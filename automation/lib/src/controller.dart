@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 
+import 'config.dart';
 import 'reporter.dart';
 import 'runner.dart';
 import 'test_registry.dart';
@@ -27,6 +28,11 @@ class AutomationController {
   }) async {
     if (_isRunning) {
       debugPrint('[Automation] Tests are already running.');
+      return false;
+    }
+    if (!AutomationConfig.enabled) {
+      debugPrint('[Automation] Skipped: automation is disabled in this build '
+          '(off in release by default; call AutomationConfig.enable() to opt in).');
       return false;
     }
 
