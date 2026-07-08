@@ -7,12 +7,11 @@
 //
 // `flutter test` exits non-zero if the final expect() fails, which is what
 // gates CI. Report artifacts are written under build/automation-reports/.
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:automation/automation.dart';
+import 'package:automation/io.dart';
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
@@ -60,20 +59,21 @@ void main() {
     late final List<TestResult> results;
     await tester.runAsync(() async {
       final runner = TestRunner(
-        config: const TestRunConfig(defaultTimeout: Duration(seconds: 20)),
+        config: TestRunConfig(
+          defaultTimeout: const Duration(seconds: 20),
+          // Capture a screenshot automatically when a test fails.
+          screenshotOnFailure: () => AutomationScreenshot.capture(),
+        ),
         listeners: [TestReporter.instance],
       );
       results = await runner.run(
         AutomationRegistry.instance.tests,
         hooks: AutomationRegistry.instance.hooks,
       );
-    });
 
-    // Persist artifacts for CI to collect.
-    final dir = Directory('build/automation-reports')..createSync(recursive: true);
-    File('${dir.path}/report.json').writeAsStringSync(TestReportFormatter.toJson(results));
-    File('${dir.path}/junit.xml').writeAsStringSync(TestReportFormatter.toJUnitXml(results));
-    File('${dir.path}/report.html').writeAsStringSync(TestReportFormatter.toHtml(results));
+      // Persist JSON/JUnit/HTML reports plus a PNG per failed test.
+      await TestArtifactWriter.write(results);
+    });
 
     // This gates CI: a non-zero exit if any automation test failed.
     expect(allPassed(results), isTrue,

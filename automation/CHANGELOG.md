@@ -29,8 +29,11 @@ filtering. The inspector and headless controller now share it.
 
 **Errors** — typed hierarchy under `AutomationException`.
 
-**Reports & screenshots** — `TestReportFormatter` (JSON/JUnit/HTML) and
-`AutomationScreenshot.capture()`.
+**Reports & screenshots** — `TestReportFormatter` (JSON/JUnit/HTML). Screenshots
+are captured automatically on failure and attached to the result (embedded in
+the HTML report); `TestArtifactWriter` (via `package:automation/io.dart`) writes
+reports + a PNG per failed test to disk. `AutomationScreenshot.capture()` for
+manual capture.
 
 **CI** — `example/integration_test` headless entrypoint (exit-code gated) and a
 reference GitHub Actions workflow.

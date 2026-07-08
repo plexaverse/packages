@@ -208,15 +208,31 @@ Each result carries its outcome, attempts, per-step timings, and error/stack.
 
 ## Reports and screenshots
 
-Turn results into artifacts with `TestReportFormatter`:
+When a test fails, a screenshot is captured automatically (before teardown)
+and attached to its result — `AutomationController.runAllTests` and the
+inspector both enable this by default. The HTML report embeds each failure's
+screenshot inline.
+
+Format results yourself with `TestReportFormatter`:
 
 ```dart
 TestReportFormatter.toJson(results);     // structured JSON
 TestReportFormatter.toJUnitXml(results); // JUnit XML for CI
-TestReportFormatter.toHtml(results);     // a simple HTML report
+TestReportFormatter.toHtml(results);     // HTML with embedded failure screenshots
 ```
 
-Capture the app (excluding the overlay) as PNG bytes:
+Or write the whole set to disk (reports + a PNG per failed test) via the
+IO entrypoint:
+
+```dart
+import 'package:automation/io.dart';
+
+await AutomationController.instance.runAllTests();
+await TestArtifactWriter.write(TestReporter.instance.detailedResults);
+// -> build/automation-reports/{report.json, junit.xml, report.html, *.png}
+```
+
+Capture a screenshot manually at any time:
 
 ```dart
 final png = await AutomationScreenshot.capture();
