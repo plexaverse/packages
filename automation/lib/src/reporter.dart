@@ -15,8 +15,16 @@ class TestReporter extends TestRunListener {
   final List<TestRunResult> _results = [];
   List<TestRunResult> get results => List.unmodifiable(_results);
 
+  final List<TestResult> _detailed = [];
+
+  /// Rich per-run results (steps, errors, attempts) for report generation.
+  List<TestResult> get detailedResults => List.unmodifiable(_detailed);
+
   /// Clears the recorded run history.
-  void clear() => _results.clear();
+  void clear() {
+    _results.clear();
+    _detailed.clear();
+  }
 
   void log(String message) {
     if (kDebugMode) {
@@ -48,6 +56,7 @@ class TestReporter extends TestRunListener {
       TestOutcome.timedOut => 'TIMED OUT',
     };
     log('Test $label: ${result.test.name} (${result.duration.inMilliseconds}ms)');
+    _detailed.add(result);
     _results.add(TestRunResult(
       testName: result.test.name,
       success: result.passed,
