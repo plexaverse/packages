@@ -374,7 +374,24 @@ class AutomationEngine {
   
   bool isVisiblePublic(Element element) => _isVisible(element);
 
-  Future<void> pumpAndSettle({Duration duration = const Duration(milliseconds: 500)}) async {
-    await Future.delayed(duration);
+  /// Waits until the framework has no more frames scheduled, i.e. animations,
+  /// layout, and transitions have settled - or until [timeout] elapses.
+  ///
+  /// Unlike a fixed delay, this returns as soon as the UI is idle and fails
+  /// loudly if something keeps scheduling frames forever (e.g. an infinite
+  /// animation), instead of silently continuing on a stale frame.
+  Future<void> pumpAndSettle({
+    Duration timeout = const Duration(seconds: 10),
+    Duration pollInterval = const Duration(milliseconds: 50),
+  }) async {
+    final binding = WidgetsBinding.instance;
+    final end = DateTime.now().add(timeout);
+    while (binding.hasScheduledFrame) {
+      if (DateTime.now().isAfter(end)) {
+        throw AutomationTimeoutException(
+            'pumpAndSettle timed out after $timeout; frames are still being scheduled (an animation may never settle).');
+      }
+      await Future.delayed(pollInterval);
+    }
   }
 }
