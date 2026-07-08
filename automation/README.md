@@ -25,7 +25,7 @@ Imagine you have a robot finger that can tap buttons and type text on your phone
 - **It runs inside your app**: You don't need complicated computer setups or external drivers.
 - **Visual Feedback**: You'll see ripples and highlights where the "robot" touches.
 - **Interactive UI**: A floating green wand icon lets you pick and run tests directly on-device.
-- **CI/CD Ready**: Supports headless execution for automated testing pipelines.
+- **Programmatic runner**: Tests can be launched from Dart via `AutomationController`, not only from the on-device UI. (Note: this runs *inside* your app; it is not yet a standalone headless CI runner — see below.)
 
 ---
 
@@ -128,15 +128,16 @@ It automatically finds the largest vertical scrollable area and scrolls incremen
 
 ### Assertions (Expect)
 Verify UI state during tests:
-- `Expect.visible(target)`: Fails if widget is missing or clipped.
+- `Expect.visible(target)`: Waits until the widget is present and on-screen; fails if it stays missing, off-screen, or clipped by a scroll viewport. (Opacity 0, `Offstage`, and being covered by another widget are not yet detected.)
 - `Expect.absent(target)`: Fails if widget is visible.
 - `Expect.text(target, 'val')`: Fails if text doesn't match exactly.
 
-### Headless Mode (CI/CD)
-Run all tests programmatically:
+### Programmatic Execution
+Run all registered tests from code:
 ```dart
 final passed = await AutomationController.instance.runAllTests();
 ```
+`runAllTests()` returns whether every test passed. Note: this executes **inside your running app**, not as a standalone headless process — there is no built-in CLI or CI exit-code integration yet. To gate CI on the result today you must wire `passed` into your own harness (e.g. `integration_test` + `flutter test`). First-class headless/CI support is on the roadmap.
 
 ### Configuration
 You can adjust the delay between steps in `inspector_ui.dart` (standard is ~250ms - 2500ms depending on your preference for watching the UI).
