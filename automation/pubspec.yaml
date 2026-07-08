@@ -1,11 +1,24 @@
 name: automation
-description: "A new Flutter package project."
+description: "In-app UI automation and an interactive on-device test runner for Flutter: widget finders, tap/type/scroll actions, assertions, and a visual inspector overlay."
 version: 0.0.1
-homepage:
+# repository: add once a public git remote exists (none configured yet)
+
+topics:
+  - testing
+  - automation
+  - ui-testing
+  - integration-testing
+
+# Declared support is limited to the platforms the engine is actually exercised
+# on. Desktop/web are untested (see the single-FlutterView assumption in
+# interaction_engine.dart) and intentionally omitted until verified.
+platforms:
+  android:
+  ios:
 
 environment:
   sdk: ^3.5.3
-  flutter: ">=1.17.0"
+  flutter: ">=3.24.0"
 
 dependencies:
   flutter:
