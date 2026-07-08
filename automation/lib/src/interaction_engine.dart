@@ -447,6 +447,34 @@ class AutomationEngine {
   
   bool isVisiblePublic(Element element) => _isVisible(element);
 
+  /// All elements currently matching [finder], searched from the root.
+  Iterable<Element> findAllPublic(AutomationFinder finder) {
+    final root = WidgetsBinding.instance.rootElement;
+    if (root == null) return const [];
+    return finder.findAll(root);
+  }
+
+  /// Number of elements currently matching [finder].
+  int countPublic(AutomationFinder finder) => findAllPublic(finder).length;
+
+  /// Whether [finder] resolves to an enabled, tappable element (itself, an
+  /// ancestor, or a descendant carries a non-null tap callback).
+  bool isTapEnabledPublic(AutomationFinder finder) {
+    final el = _findFirstElement(finder);
+    if (el == null) return false;
+    if (_isTappable(el) && _hasTapCallback(el.widget)) return true;
+    var foundInAncestor = false;
+    el.visitAncestorElements((a) {
+      if (_isTappable(a) && _hasTapCallback(a.widget)) {
+        foundInAncestor = true;
+        return false;
+      }
+      return true;
+    });
+    if (foundInAncestor) return true;
+    return _findFirstDescendant(el, (e) => _isTappable(e) && _hasTapCallback(e.widget)) != null;
+  }
+
   /// Waits until the framework has no more frames scheduled, i.e. animations,
   /// layout, and transitions have settled - or until [timeout] elapses.
   ///
