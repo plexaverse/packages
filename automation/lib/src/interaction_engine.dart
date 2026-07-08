@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'errors.dart';
 import 'finders.dart';
 
 class AutomationEngine {
@@ -25,7 +26,7 @@ class AutomationEngine {
     await waitFor(finder, timeout: timeout);
 
     final element = _findFirstElement(finder);
-    if (element == null) throw Exception('Widget not found for $finder');
+    if (element == null) throw ElementNotFoundException('No widget found for $finder.');
 
     // 1. Check if the element itself is tappable AND actually has a callback
     Element? tappableElement;
@@ -48,12 +49,12 @@ class AutomationEngine {
     final tappable = tappableElement;
     if (tappable == null) {
       if (_isTappable(element) && !_hasTapCallback(element.widget)) {
-        throw Exception('Widget found for $finder but it is disabled: its onPressed/onTap callback is null.');
+        throw NotActionableException('Widget found for $finder but it is disabled: its onPressed/onTap callback is null.');
       }
-      throw Exception('Widget found but no tappable ancestor or descendant found: $finder.');
+      throw NotActionableException('Widget found for $finder but no tappable element with a callback was found on it or its ancestors/descendants.');
     }
     if (!_isVisible(tappable)) {
-       throw Exception('Widget found but not visible: $finder.');
+       throw NotVisibleException('Widget found for $finder but it is not visible.');
     }
 
     await _highlightAndTap(tappable);
@@ -76,13 +77,13 @@ class AutomationEngine {
     await waitFor(finder, timeout: timeout);
 
     final root = _findFirstElement(finder);
-    if (root == null) throw Exception('Widget not found for $finder');
+    if (root == null) throw ElementNotFoundException('No widget found for $finder.');
 
     // Find the EditableText descendant.
     final editableElement = _findFirstDescendant(root, (e) => e.widget is EditableText && _isVisible(e));
-    
+
     final editable = editableElement;
-    if (editable == null) throw Exception('No EditableText widget found inside $finder. Ensure you are targeting a TextField or TextFormField.');
+    if (editable == null) throw NotActionableException('No editable text field found inside $finder. Ensure you are targeting a TextField or TextFormField.');
 
     await _highlightAndEnterText(editable, text);
   }
@@ -186,7 +187,7 @@ class AutomationEngine {
     }
     
     if (scrollState == null) {
-      throw Exception('No vertical Scrollable found to perform scrollUntilVisible.');
+      throw const NotActionableException('No vertical Scrollable found to perform scrollUntilVisible.');
     }
 
     final position = scrollState.position;
@@ -215,7 +216,7 @@ class AutomationEngine {
     }
     
     if (!_elementExistsAndVisible(targetFinder)) {
-      throw Exception('Could not find $target after scrolling to the bottom (${position.maxScrollExtent}px).');
+      throw ElementNotFoundException('Could not find $target after scrolling to the bottom (${position.maxScrollExtent}px).');
     }
   }
 
@@ -242,7 +243,7 @@ class AutomationEngine {
       if (_findFirstElement(finder) != null) return;
       await Future.delayed(const Duration(milliseconds: 200));
     }
-    throw Exception('Timed out waiting for $finder');
+    throw AutomationTimeoutException('Timed out after $timeout waiting for $finder.');
   }
 
   bool _isTappable(Element element) {
@@ -292,7 +293,7 @@ class AutomationEngine {
     }
     
     if (!tapped) {
-       throw Exception('Failed to tap ${widget.runtimeType}: onPressed/onTap is null or widget type handled incorrectly.');
+       throw NotActionableException('Failed to tap ${widget.runtimeType}: onPressed/onTap is null or the widget type is not handled.');
     }
   }
 

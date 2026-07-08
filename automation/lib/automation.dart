@@ -8,6 +8,7 @@ export 'src/finders.dart';
 export 'src/expect.dart';
 export 'src/reporter.dart';
 export 'src/controller.dart';
+export 'src/errors.dart';
 
 /// A wrapper widget that adds the Realtime Inspector overlay to the app.
 class AutomationInspectorWrapper extends StatelessWidget {
