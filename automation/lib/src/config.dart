@@ -12,6 +12,10 @@ class AutomationConfig {
 
   static bool _enabled = !kReleaseMode;
 
+  /// When true, the engine emits verbose `debugPrint` diagnostics (scrolling,
+  /// scrollable resolution). Off by default to keep logs quiet.
+  static bool verboseLogging = false;
+
   /// Whether automation actions are currently allowed.
   static bool get enabled => _enabled;
 

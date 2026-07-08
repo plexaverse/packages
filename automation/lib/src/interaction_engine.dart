@@ -12,6 +12,11 @@ class AutomationEngine {
   /// Callback for when an interaction occurs (used for UI highlighting).
   void Function(Offset position)? onInteraction;
 
+  /// Verbose diagnostics, gated by [AutomationConfig.verboseLogging].
+  void _log(String message) {
+    if (AutomationConfig.verboseLogging) debugPrint('[Automation] $message');
+  }
+
   /// Throws if automation has been disabled for this build (e.g. release).
   void _ensureEnabled() {
     if (!AutomationConfig.enabled) {
@@ -234,124 +239,91 @@ class AutomationEngine {
     }
   }
 
-  /// Scrolls until the [target] is visible.
-  Future<void> scrollUntilVisible(dynamic target, {
+  /// Scrolls until [target] is visible, then centers it.
+  ///
+  /// Prefers the scrollable that contains the target (so nested lists work);
+  /// if the target isn't built yet, it drives the largest scrollable on [axis].
+  /// Pass [scrollable] to choose one explicitly, or [axis] to scroll
+  /// horizontally. Scrolling is animated (real scroll physics), not a jump.
+  Future<void> scrollUntilVisible(
+    dynamic target, {
     dynamic scrollable,
-    double step = 300.0, 
-    int maxScrolls = 60, 
-    Duration duration = const Duration(milliseconds: 100)
+    Axis axis = Axis.vertical,
+    double step = 300.0,
+    int maxScrolls = 60,
   }) async {
     _ensureEnabled();
     final targetFinder = _toFinder(target);
+    _log('scrollUntilVisible: looking for $targetFinder on $axis');
 
-    debugPrint('[Automation] scrollUntilVisible: looking for $targetFinder');
-
-    final existingElement = _findFirstElement(targetFinder);
-    if (existingElement != null) {
-      debugPrint('[Automation] Found element: ${existingElement.widget.runtimeType}');
-      final visible = _isVisible(existingElement);
-      debugPrint('[Automation] Is visible: $visible');
-      if (visible) {
-        debugPrint('[Automation] target already visible');
-        return;
-      }
-    } else {
-      debugPrint('[Automation] Element not found in tree, will scroll to find it');
+    final existing = _findFirstElement(targetFinder);
+    if (existing != null && _isVisible(existing)) {
+      _log('target already visible');
+      return;
     }
 
-    ScrollableState? scrollState;
-    if (scrollable != null) {
-      final scrollableFinder = _toFinder(scrollable);
-      final element = _findFirstElement(scrollableFinder);
-      if (element != null) {
-        scrollState = Scrollable.of(element);
-      }
-    } else {
-      // Find the "best" vertical scrollable (the one with the largest scroll extent)
-      debugPrint('[Automation] Looking for scrollable widgets in tree...');
-      ScrollableState? bestScrollable;
-      double largestExtent = -1.0;
-      int elementCount = 0;
-
-      void visitor(Element e) {
-        elementCount++;
-        // Skip only the overlay part of the automation inspector, not the wrapper
-        final widgetTypeName = e.widget.runtimeType.toString();
-        if (widgetTypeName == 'AutomationInspectorOverlay' || 
-            widgetTypeName == '_AutomationInspectorOverlayState' ||
-            widgetTypeName.startsWith('_AutomationInspector')) {
-          return; // Skip this subtree
-        }
-
-        final widgetType = e.widget.runtimeType.toString();
-        // Log potential scrollable-related widgets
-        if (widgetType.contains('Scroll') || widgetType.contains('List') || widgetType.contains('View')) {
-          debugPrint('[Automation] Checking widget: $widgetType');
-        }
-
-        if (e.widget is Scrollable) {
-          debugPrint('[Automation] Found Scrollable widget: ${e.widget.runtimeType}');
-          
-          if (e is StatefulElement) {
-            final state = e.state;
-            if (state is ScrollableState) {
-              debugPrint('[Automation] Scrollable axis: ${state.widget.axis}');
-              if (state.widget.axis == Axis.vertical) {
-                try {
-                  if (state.position.hasPixels) {
-                    final extent = state.position.maxScrollExtent;
-                    debugPrint('[Automation] Scrollable maxExtent: $extent');
-                    if (extent > largestExtent) {
-                      largestExtent = extent;
-                      bestScrollable = state;
-                    }
-                  }
-                } catch (err) {
-                  debugPrint('[Automation] Error getting scroll extent: $err');
-                }
-              }
-            }
-          }
-        }
-        e.visitChildren(visitor);
-      }
-      WidgetsBinding.instance.rootElement?.visitChildren(visitor);
-      debugPrint('[Automation] Visited $elementCount elements, bestScrollable: ${bestScrollable != null}');
-      scrollState = bestScrollable;
-    }
-    
+    final scrollState = _resolveScrollable(scrollable, existing, axis);
     if (scrollState == null) {
-      throw const NotActionableException('No vertical Scrollable found to perform scrollUntilVisible.');
+      throw NotActionableException('No ${axis.name} Scrollable found to scroll to $target.');
     }
 
     final position = scrollState.position;
-    debugPrint('[Automation] Using scrollable with maxExtent: ${position.maxScrollExtent}');
-    
-    for (int i = 0; i < maxScrolls; i++) {
-        final element = _findFirstElement(targetFinder);
-        if (element != null && _isVisible(element)) {
-           debugPrint('[Automation] Target found in tree and visible. Ensuring visibility...');
-           await Scrollable.ensureVisible(element, duration: const Duration(milliseconds: 200), alignment: 0.5);
-           await Future.delayed(const Duration(milliseconds: 300)); // Wait for animation
-           return;
-        }
-        
-        if (position.pixels >= position.maxScrollExtent) {
-           debugPrint('[Automation] Reached bottom of scrollable at ${position.pixels}');
-           break;
-        }
+    for (var i = 0; i < maxScrolls; i++) {
+      final element = _findFirstElement(targetFinder);
+      if (element != null && _isVisible(element)) {
+        _log('target visible after $i step(s); centering');
+        await Scrollable.ensureVisible(element, duration: const Duration(milliseconds: 200), alignment: 0.5);
+        return;
+      }
+      if (position.pixels >= position.maxScrollExtent) {
+        _log('reached the end of the scrollable at ${position.pixels}');
+        break;
+      }
+      final next = (position.pixels + step).clamp(0.0, position.maxScrollExtent);
+      _log('scrolling to $next (step $i)');
+      await position.animateTo(next, duration: const Duration(milliseconds: 150), curve: Curves.easeInOut);
+    }
 
-        final targetScroll = (position.pixels + step).clamp(0.0, position.maxScrollExtent);
-        debugPrint('[Automation] Jumping to $targetScroll (Step $i)');
-        position.jumpTo(targetScroll);
-        
-        await Future.delayed(duration);
-        await Future.delayed(const Duration(milliseconds: 50));
-    }
-    
     if (!_elementExistsAndVisible(targetFinder)) {
-      throw ElementNotFoundException('Could not find $target after scrolling to the bottom (${position.maxScrollExtent}px).');
+      throw ElementNotFoundException('Could not find $target after scrolling to the end (${position.maxScrollExtent}px).');
     }
+  }
+
+  /// Chooses which scrollable to drive: an explicit [scrollable], else the
+  /// scrollable containing [targetElement], else the largest one on [axis].
+  ScrollableState? _resolveScrollable(dynamic scrollable, Element? targetElement, Axis axis) {
+    if (scrollable != null) {
+      final element = _findFirstElement(_toFinder(scrollable));
+      return element == null ? null : Scrollable.maybeOf(element);
+    }
+
+    if (targetElement != null) {
+      final containing = Scrollable.maybeOf(targetElement);
+      if (containing != null && containing.widget.axis == axis) return containing;
+    }
+
+    ScrollableState? best;
+    var largest = -1.0;
+    void visit(Element e) {
+      final typeName = e.widget.runtimeType.toString();
+      if (typeName == 'AutomationInspectorOverlay' || typeName.startsWith('_AutomationInspector')) {
+        return; // Skip the inspector's own subtree.
+      }
+      if (e is StatefulElement) {
+        final state = e.state;
+        if (state is ScrollableState && state.widget.axis == axis && state.position.hasPixels) {
+          final extent = state.position.maxScrollExtent;
+          if (extent > largest) {
+            largest = extent;
+            best = state;
+          }
+        }
+      }
+      e.visitChildren(visit);
+    }
+
+    WidgetsBinding.instance.rootElement?.visitChildren(visit);
+    return best;
   }
 
   // --- Finders & Utils ---
