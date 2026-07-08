@@ -66,4 +66,42 @@ void main() {
       );
     });
   });
+
+  testWidgets('tap on a button covered by an opaque overlay is not actionable', (tester) async {
+    var taps = 0;
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: Stack(
+          children: [
+            Center(
+              child: ElevatedButton(
+                key: const Key('go'),
+                onPressed: () => taps++,
+                child: const Text('Go'),
+              ),
+            ),
+            // A full-screen opaque layer sits on top and swallows all pointers.
+            Positioned.fill(
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () {},
+                child: const SizedBox.expand(),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ));
+
+    await tester.runAsync(() async {
+      await expectLater(
+        AutomationEngine.instance.tap(const Key('go'), timeout: const Duration(milliseconds: 600)),
+        throwsA(isA<NotActionableException>()),
+      );
+    });
+
+    // The covered button must never fire - proof that hit-testing is real and
+    // the old false-green (direct-callback) behavior is gone.
+    expect(taps, 0);
+  });
 }

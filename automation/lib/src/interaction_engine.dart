@@ -22,51 +22,124 @@ class AutomationEngine {
   }
 
   /// Triggers a tap on the widget identified by [target].
+  ///
+  /// Before tapping, the target must pass every actionability check: it exists,
+  /// resolves to an element with a tap callback (i.e. is enabled), is visible,
+  /// and actually receives pointer events at its center (not obscured by
+  /// another widget). These are re-checked on a poll until [timeout]; on
+  /// timeout the most specific failing reason is thrown.
   Future<void> tap(dynamic target, {Duration timeout = const Duration(seconds: 5)}) async {
     final finder = _toFinder(target);
-    await waitFor(finder, timeout: timeout);
+    final deadline = DateTime.now().add(timeout);
 
+    AutomationException lastReason = ElementNotFoundException('No widget found for $finder.');
+    while (true) {
+      final actionable = _resolveActionableTap(finder, (reason) => lastReason = reason);
+      if (actionable != null) {
+        await _highlightAndTap(actionable);
+        return;
+      }
+      if (!DateTime.now().isBefore(deadline)) {
+        throw lastReason;
+      }
+      await Future.delayed(const Duration(milliseconds: 100));
+    }
+  }
+
+  /// Resolves [finder] to a tappable, visible, unobscured element, or returns
+  /// null and reports (via [onFail]) the most specific reason it is not yet
+  /// actionable.
+  Element? _resolveActionableTap(AutomationFinder finder, void Function(AutomationException) onFail) {
     final element = _findFirstElement(finder);
-    if (element == null) throw ElementNotFoundException('No widget found for $finder.');
+    if (element == null) {
+      onFail(ElementNotFoundException('No widget found for $finder.'));
+      return null;
+    }
 
-    // 1. Check if the element itself is tappable AND actually has a callback
-    Element? tappableElement;
+    // Resolve to the element that actually carries a tap callback: the target
+    // itself, then a tappable ancestor, then a tappable descendant.
+    Element? found;
     if (_isTappable(element) && _hasTapCallback(element.widget)) {
-      tappableElement = element;
+      found = element;
     } else {
-      // 2. Look UP for a tappable ancestor that has a callback
       element.visitAncestorElements((ancestor) {
         if (_isTappable(ancestor) && _hasTapCallback(ancestor.widget)) {
-          tappableElement = ancestor;
-          return false; // Stop visiting
+          found = ancestor;
+          return false;
         }
         return true;
       });
-      
-      // 3. If still not found, Look DOWN (legacy behavior)
-      tappableElement ??= _findFirstDescendant(element, (e) => _isTappable(e) && _isVisible(e) && _hasTapCallback(e.widget));
+      found ??= _findFirstDescendant(
+          element, (e) => _isTappable(e) && _isVisible(e) && _hasTapCallback(e.widget));
     }
 
-    final tappable = tappableElement;
+    final tappable = found;
     if (tappable == null) {
       if (_isTappable(element) && !_hasTapCallback(element.widget)) {
-        throw NotActionableException('Widget found for $finder but it is disabled: its onPressed/onTap callback is null.');
+        onFail(NotActionableException('Widget for $finder is disabled: its onPressed/onTap callback is null.'));
+      } else {
+        onFail(NotActionableException('No tappable element with a callback found for $finder (on it or its ancestors/descendants).'));
       }
-      throw NotActionableException('Widget found for $finder but no tappable element with a callback was found on it or its ancestors/descendants.');
-    }
-    if (!_isVisible(tappable)) {
-       throw NotVisibleException('Widget found for $finder but it is not visible.');
+      return null;
     }
 
-    await _highlightAndTap(tappable);
+    if (!_isVisible(tappable)) {
+      onFail(NotVisibleException('Widget for $finder is not visible.'));
+      return null;
+    }
+
+    final center = _centerOf(tappable);
+    if (center == null) {
+      onFail(const NotActionableException('Target has no attached, sized render box.'));
+      return null;
+    }
+    if (!_pointReachesTarget(tappable, center)) {
+      onFail(NotActionableException('Widget for $finder is obscured by another widget and would not receive the tap at $center.'));
+      return null;
+    }
+
+    return tappable;
+  }
+
+  /// Global-coordinate center of [element], or null if it has no usable box.
+  Offset? _centerOf(Element element) {
+    final rb = element.renderObject as RenderBox?;
+    if (rb == null || !rb.attached || !rb.hasSize) return null;
+    return rb.localToGlobal(rb.size.center(Offset.zero));
+  }
+
+  /// Whether a pointer at [globalPosition] would actually reach [target],
+  /// i.e. [target] (or a descendant of it) is on the hit-test path and not
+  /// covered by some other widget. This is the "receives events" check.
+  bool _pointReachesTarget(Element target, Offset globalPosition) {
+    final targetRO = target.renderObject;
+    if (targetRO == null) return false;
+    final result = HitTestResult();
+    GestureBinding.instance.hitTestInView(result, globalPosition, View.of(target).viewId);
+    for (final HitTestEntry entry in result.path) {
+      final hit = entry.target;
+      if (hit == targetRO) return true;
+      if (hit is RenderObject && _isRenderDescendant(targetRO, hit)) return true;
+    }
+    return false;
+  }
+
+  /// Whether [node] is [ancestor] or sits below it in the render tree.
+  bool _isRenderDescendant(RenderObject ancestor, RenderObject node) {
+    RenderObject? current = node;
+    while (current != null) {
+      if (current == ancestor) return true;
+      final parent = current.parent;
+      current = parent is RenderObject ? parent : null;
+    }
+    return false;
   }
 
   Future<void> _highlightAndTap(Element element) async {
-    final renderBox = element.renderObject as RenderBox?;
-    if (renderBox == null || !renderBox.attached || !renderBox.hasSize) {
+    final position = _centerOf(element);
+    if (position == null) {
       throw const NotActionableException('Target for tap has no attached, sized render box.');
     }
-    final position = renderBox.localToGlobal(renderBox.size.center(Offset.zero));
     onInteraction?.call(position);
     await Future.delayed(const Duration(milliseconds: 300));
 
