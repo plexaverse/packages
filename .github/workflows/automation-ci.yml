@@ -1,0 +1,53 @@
+name: automation CI
+
+on:
+  push:
+    paths: ['automation/**', '.github/workflows/automation-ci.yml']
+  pull_request:
+    paths: ['automation/**', '.github/workflows/automation-ci.yml']
+
+jobs:
+  analyze-and-unit-test:
+    name: Analyze + unit/widget tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: automation
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.3'
+          channel: stable
+      - run: flutter pub get
+      - run: flutter analyze
+      - run: flutter test
+
+  integration-test:
+    name: Headless integration test (Android emulator)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.3'
+          channel: stable
+      - name: Resolve example deps
+        working-directory: automation/example
+        run: flutter pub get
+      - name: Run integration tests on an emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          working-directory: automation/example
+          # `flutter test integration_test` exits non-zero if the suite fails,
+          # which fails this job.
+          script: flutter test integration_test
+      - name: Upload report artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: automation-reports
+          path: automation/example/build/automation-reports/
+          if-no-files-found: ignore
