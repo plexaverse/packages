@@ -27,9 +27,9 @@ class AutomationEngine {
     final element = _findFirstElement(finder);
     if (element == null) throw Exception('Widget not found for $finder');
 
-    // 1. Check if the element itself is tappable
+    // 1. Check if the element itself is tappable AND actually has a callback
     Element? tappableElement;
-    if (_isTappable(element)) {
+    if (_isTappable(element) && _hasTapCallback(element.widget)) {
       tappableElement = element;
     } else {
       // 2. Look UP for a tappable ancestor that has a callback
@@ -47,7 +47,10 @@ class AutomationEngine {
 
     final tappable = tappableElement;
     if (tappable == null) {
-       throw Exception('Widget found but no tappable ancestor or descendant found: $finder.');
+      if (_isTappable(element) && !_hasTapCallback(element.widget)) {
+        throw Exception('Widget found for $finder but it is disabled: its onPressed/onTap callback is null.');
+      }
+      throw Exception('Widget found but no tappable ancestor or descendant found: $finder.');
     }
     if (!_isVisible(tappable)) {
        throw Exception('Widget found but not visible: $finder.');
