@@ -1,38 +1,50 @@
 # Automation 🚀
 
-Welcome to `automation`, a friendly and powerful tool to test your Flutter apps interactively!
-
-If you are new to testing or Flutter, don't worry. This guide will walk you through everything step-by-step. By the end, you'll be able to watch your app run tests on its own, like magic! ✨
+`automation` is an in-app UI testing tool for Flutter. You register tests in
+Dart, then run them either from an on-device inspector overlay or headlessly in
+CI. Actions drive **real input** — synthetic pointer and IME events routed
+through Flutter's gesture and text pipelines — so a green result means a user
+could actually perform the action.
 
 ---
 
-## 📚 Table of Contents
+## Table of Contents
 
-- [What does this package do?](#what-does-this-package-do)
+- [What it does](#what-it-does)
 - [Installation](#installation)
 - [Setup](#setup)
-- [Writing Your First Test](#writing-your-first-test)
-- [Running Tests](#running-tests)
-- [Smart Features](#smart-features)
-- [For Advanced Users](#for-advanced-users)
+- [Writing your first test](#writing-your-first-test)
+- [Finders](#finders)
+- [Actions](#actions)
+- [Assertions](#assertions)
+- [The test runner](#the-test-runner)
+- [Reports and screenshots](#reports-and-screenshots)
+- [Running headless in CI](#running-headless-in-ci)
+- [Safety: release builds](#safety-release-builds)
+- [Stability](#stability)
 
 ---
 
-## What does this package do?
+## What it does
 
-Imagine you have a robot finger that can tap buttons and type text on your phone. This package gives you that robot finger! 🤖
-
-- **It runs inside your app**: You don't need complicated computer setups or external drivers.
-- **Visual Feedback**: You'll see ripples and highlights where the "robot" touches.
-- **Interactive UI**: A floating green wand icon lets you pick and run tests directly on-device.
-- **Programmatic runner**: Tests can be launched from Dart via `AutomationController`, not only from the on-device UI. (Note: this runs *inside* your app; it is not yet a standalone headless CI runner — see below.)
+- **Real input** — `tap` dispatches hit-tested pointer events through
+  `GestureBinding`; `enterText` drives the field's real IME pipeline
+  (`inputFormatters`, `onChanged`, selection, `onSubmitted`). Callbacks are not
+  invoked directly, so covered / `IgnorePointer` / disabled widgets are
+  correctly reported as not actionable instead of silently "passing".
+- **Actionability + auto-waiting** — before acting, the target must exist,
+  resolve to an enabled element, be visible (honoring `Offstage`, zero
+  `Opacity`, and clips), and actually receive events at its center. These are
+  re-checked until a timeout.
+- **On-device inspector** — a floating overlay (debug builds) to pick and run
+  tests and watch step-by-step progress.
+- **Headless runner** — the same runner, wired to a process exit code for CI.
 
 ---
 
 ## Installation
 
-1.  Open your `pubspec.yaml`.
-2.  Add `automation` under `dependencies`:
+Add it to your app's `pubspec.yaml`:
 
 ```yaml
 dependencies:
@@ -40,108 +52,213 @@ dependencies:
     path: path/to/automation
 ```
 
-3.  Run `flutter pub get`.
+Then `flutter pub get`.
 
 ---
 
 ## Setup
 
-Wrap your `MaterialApp` with `AutomationInspectorWrapper`:
+Wrap your app with `AutomationInspectorWrapper`:
 
 ```dart
 import 'package:automation/automation.dart';
 
 void main() {
-  runApp(
-    AutomationInspectorWrapper(
-      child: MyApp(),
-    ),
-  );
+  runApp(AutomationInspectorWrapper(child: const MyApp()));
 }
 ```
 
+The overlay only renders in debug builds. In release, automation is disabled by
+default (see [Safety](#safety-release-builds)).
+
 ---
 
-## Writing Your First Test
+## Writing your first test
 
-### 1. Add Keys to your Widgets
-Use `Key` to identify widgets you want to test.
-
-```dart
-TextField(
-  key: const Key('username_field'),
-  decoration: InputDecoration(labelText: 'Username'),
-)
-```
-
-### 2. Register the Test
-Register your tests **before** calling `runApp()`.
+Register tests before `runApp` (guard with `kDebugMode` so test code and any
+credentials do not ship in release):
 
 ```dart
 void main() {
-  AutomationRegistry.instance.registerTest(
-    name: 'Login Test',
-    steps: [
-      TestStep(
-        description: 'Enter username',
-        action: () async {
-          await AutomationEngine.instance.enterText(const Key('username_field'), 'tester');
-        },
-      ),
-      TestStep(
-        description: 'Tap login',
-        action: () async {
-          await AutomationEngine.instance.tap(find.byText('LOGIN'));
-        },
-      ),
-    ],
-  );
-
-  runApp(const MyApp());
+  if (kDebugMode) {
+    AutomationRegistry.instance.registerTest(
+      name: 'Login',
+      tags: {'smoke'},
+      steps: [
+        TestStep(
+          description: 'Enter username',
+          action: () => AutomationEngine.instance.enterText(const Key('username'), 'tester'),
+        ),
+        TestStep(
+          description: 'Tap login',
+          action: () => AutomationEngine.instance.tap(find.byText('LOGIN')),
+        ),
+        TestStep(
+          description: 'Land on the dashboard',
+          action: () => Expect.visible(find.byText('Inventory')),
+        ),
+      ],
+    );
+  }
+  runApp(AutomationInspectorWrapper(child: const MyApp()));
 }
 ```
 
 ---
 
-## Smart Features
+## Finders
 
-### 🕒 Dynamic Waiting
-The package doesn't use static "sleep" times. The `waitFor` mechanism (used internally by `tap` and `enterText`) polls the widget tree every 200ms and proceeds **immediately** when the widget appears. This makes tests fast and reliable.
+Via the global `find`:
 
-### 📜 Smart Scrolling
-Use `scrollUntilVisible()` to find widgets hidden in long lists.
-```dart
-await AutomationEngine.instance.scrollUntilVisible(find.byText('Item 42'));
-```
-It automatically finds the largest vertical scrollable area and scrolls incrementally until the target is found and visible.
+| Finder | Matches |
+|--------|---------|
+| `find.byKey(key)` | widget by `Key` |
+| `find.byText('x')` | `Text`/`EditableText` with exactly that text |
+| `find.textContaining('x')` | substring; also accepts a `RegExp` |
+| `find.byIcon(Icons.add)` | `Icon` |
+| `find.byType(ElevatedButton)` | exact runtime type |
+| `find.byWidget<ButtonStyleButton>()` | type **or subtype** |
+| `find.byTooltip('Delete')` | `Tooltip` by message |
+| `find.descendant(of:, matching:)` | child within a parent |
 
-### 🔍 Powerful Finders
-- `find.byKey(Key)`
-- `find.byText(String)`
-- `find.byIcon(IconData)`
-- `find.byType(Type)`
-- `find.descendant(of: ..., matching: ...)`
+Narrow any finder with `.first`, `.last`, or `.at(n)`.
 
----
-
-## For Advanced Users
-
-### Assertions (Expect)
-Verify UI state during tests:
-- `Expect.visible(target)`: Waits until the widget is present and on-screen; fails if it stays missing, off-screen, or clipped by a scroll viewport. (Opacity 0, `Offstage`, and being covered by another widget are not yet detected.)
-- `Expect.absent(target)`: Fails if widget is visible.
-- `Expect.text(target, 'val')`: Fails if text doesn't match exactly.
-
-### Programmatic Execution
-Run all registered tests from code:
-```dart
-final passed = await AutomationController.instance.runAllTests();
-```
-`runAllTests()` returns whether every test passed. Note: this executes **inside your running app**, not as a standalone headless process — there is no built-in CLI or CI exit-code integration yet. To gate CI on the result today you must wire `passed` into your own harness (e.g. `integration_test` + `flutter test`). First-class headless/CI support is on the roadmap.
-
-### Configuration
-You can adjust the delay between steps in `inspector_ui.dart` (standard is ~250ms - 2500ms depending on your preference for watching the UI).
+Actions and assertions also accept a `Key`, `String`, `IconData`, or `Type`
+directly and resolve it to a finder.
 
 ---
 
-*Happy Testing!* 🎉
+## Actions
+
+```dart
+final engine = AutomationEngine.instance;
+await engine.tap(target);                       // real hit-tested tap
+await engine.enterText(target, 'hi', submit: true); // real IME input + submit
+await engine.scrollUntilVisible(target, axis: Axis.vertical); // animated scroll
+await engine.waitFor(target);                   // wait until present
+await engine.pumpAndSettle();                   // wait until frames settle
+```
+
+`scrollUntilVisible` prefers the scrollable that contains the target (so nested
+and horizontal lists work) and scrolls with real physics.
+
+---
+
+## Assertions
+
+`Expect` assertions auto-retry until they hold or time out:
+
+```dart
+await Expect.visible(target);
+await Expect.hidden(target);
+await Expect.absent(target);
+await Expect.count(find.byText('Item'), 10);
+await Expect.enabled(target);
+await Expect.disabled(target);
+await Expect.text(const Key('title'), 'Welcome');   // descends into children
+await Expect.textContaining(target, 'Wel');
+```
+
+Collect several without stopping at the first failure:
+
+```dart
+final soft = SoftAssertions();
+await soft.check(() => Expect.visible(a));
+await soft.check(() => Expect.text(b, 'x'));
+soft.assertAll(); // throws once with every failure
+```
+
+Failures throw typed errors (`ElementNotFoundException`, `NotVisibleException`,
+`NotActionableException`, `AutomationTimeoutException`,
+`AutomationAssertionException`, …) — all subtypes of `AutomationException`.
+
+---
+
+## The test runner
+
+`TestRunner` is the single execution core used by both the inspector and CI:
+
+```dart
+final results = await TestRunner(
+  config: const TestRunConfig(
+    defaultTimeout: Duration(seconds: 20),
+    retries: 1,                 // retry failures; passing on retry marks flaky
+    includeTags: {'smoke'},     // or excludeTags / grep by name
+  ),
+  listeners: [TestReporter.instance],
+).run(
+  AutomationRegistry.instance.tests,
+  hooks: AutomationRegistry.instance.hooks,
+);
+```
+
+Register setup/teardown (use `beforeEach` to reset app state for isolation):
+
+```dart
+AutomationRegistry.instance
+  ..beforeAll(() { /* once before the run */ })
+  ..beforeEach(() { /* reset app state before each test */ })
+  ..afterEach(() { /* cleanup */ })
+  ..afterAll(() { /* once after the run */ });
+```
+
+Each result carries its outcome, attempts, per-step timings, and error/stack.
+
+---
+
+## Reports and screenshots
+
+Turn results into artifacts with `TestReportFormatter`:
+
+```dart
+TestReportFormatter.toJson(results);     // structured JSON
+TestReportFormatter.toJUnitXml(results); // JUnit XML for CI
+TestReportFormatter.toHtml(results);     // a simple HTML report
+```
+
+Capture the app (excluding the overlay) as PNG bytes:
+
+```dart
+final png = await AutomationScreenshot.capture();
+```
+
+---
+
+## Running headless in CI
+
+Automation runs headlessly through `package:integration_test`, whose pass/fail
+becomes the process exit code. See
+[`example/integration_test/automation_test.dart`](example/integration_test/automation_test.dart)
+for a complete entrypoint that runs the suite and writes JSON/JUnit/HTML
+artifacts, and [`.github/workflows/automation-ci.yml`](../.github/workflows/automation-ci.yml)
+for a reference workflow (analyze + unit/widget tests, plus the integration
+suite on an emulator with artifact upload).
+
+```bash
+flutter test integration_test    # exits non-zero if any test fails
+```
+
+---
+
+## Safety: release builds
+
+Automation actuates the live app, so it is **enabled outside release builds
+only** (debug and profile). In release, `tap`/`enterText`/`scrollUntilVisible`
+throw `AutomationDisabledException` and `runAllTests` no-ops. Opt in
+deliberately for release automation:
+
+```dart
+AutomationConfig.enable();   // allow automation in any build mode
+```
+
+---
+
+## Stability
+
+Pre-1.0 (`0.x`): the API may change between minor versions. Breaking changes are
+called out in the [CHANGELOG](CHANGELOG.md). Once the interaction and runner
+APIs settle, this will move to 1.0 with semver guarantees.
+
+---
+
+*Happy testing!* 🎉

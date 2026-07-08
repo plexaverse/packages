@@ -1,3 +1,43 @@
+## 0.2.0
+
+Real-input engine, a production-grade runner, and CI. Pre-1.0, so some APIs
+changed; highlights below.
+
+**Interaction (breaking behavior change)**
+- `tap` now dispatches hit-tested pointer events via `GestureBinding` instead of
+  invoking widget callbacks directly. Covered / `IgnorePointer` / disabled
+  widgets are reported not actionable rather than falsely passing.
+- `enterText` drives the real IME pipeline (`inputFormatters`, `onChanged`,
+  selection, and optional `submit`) instead of assigning `controller.text`.
+- Every action runs an actionability loop (exists → enabled → visible →
+  receives events) until a timeout, throwing the most specific reason.
+- `pumpAndSettle` waits for frames to actually settle (param `duration` →
+  `timeout`); `scrollUntilVisible` supports `axis`, prefers the scrollable
+  containing the target, and animates instead of jumping.
+
+**Finders** — `textContaining` (substring/RegExp), `byWidget<T>()` (subtypes),
+`byTooltip`, and `first`/`last`/`at(n)`; fixed the `byText` RichText
+double-match.
+
+**Assertions** — all auto-retry now; added `hidden`, `count`, `enabled`,
+`disabled`, `textContaining`, and `SoftAssertions`. `visible` checks real
+visibility; `text` descends into children.
+
+**Runner** — new `TestRunner` core with `beforeAll`/`afterAll`/`beforeEach`/
+`afterEach` hooks, per-test timeouts, retries + flaky detection, and tag/grep
+filtering. The inspector and headless controller now share it.
+
+**Errors** — typed hierarchy under `AutomationException`.
+
+**Reports & screenshots** — `TestReportFormatter` (JSON/JUnit/HTML) and
+`AutomationScreenshot.capture()`.
+
+**CI** — `example/integration_test` headless entrypoint (exit-code gated) and a
+reference GitHub Actions workflow.
+
+**Safety** — `AutomationConfig` disables actuation in release builds by default;
+`verboseLogging` gates diagnostics.
+
 ## 0.1.0
 
 Packaging, correctness, and honesty pass.

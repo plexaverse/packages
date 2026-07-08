@@ -1,6 +1,6 @@
 name: automation
 description: "In-app UI automation and an interactive on-device test runner for Flutter: widget finders, tap/type/scroll actions, assertions, and a visual inspector overlay."
-version: 0.1.0
+version: 0.2.0
 # repository: add once a public git remote exists (none configured yet)
 
 topics:
