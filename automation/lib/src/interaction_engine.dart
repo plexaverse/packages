@@ -407,35 +407,45 @@ class AutomationEngine {
 
   bool _isVisible(Element element) {
     final renderBox = element.renderObject as RenderBox?;
-    if (renderBox == null || !renderBox.attached || !renderBox.hasSize || renderBox.size.isEmpty) return false;
+    if (renderBox == null || !renderBox.attached || !renderBox.hasSize || renderBox.size.isEmpty) {
+      return false;
+    }
 
-    final view = WidgetsBinding.instance.platformDispatcher.views.first;
+    // Resolve the FlutterView actually hosting this element (multi-view safe),
+    // falling back to the implicit/first view.
+    final view = View.maybeOf(element) ?? WidgetsBinding.instance.platformDispatcher.views.first;
     final windowSize = view.physicalSize / view.devicePixelRatio;
     Rect visibleArea = Rect.fromLTWH(0, 0, windowSize.width, windowSize.height);
 
-    // Initial widget rect in global coords
-    final pos = renderBox.localToGlobal(Offset.zero);
-    final widgetRect = pos & renderBox.size;
-
-    // Check if it's even on the screen generally
+    final widgetRect = renderBox.localToGlobal(Offset.zero) & renderBox.size;
     if (!visibleArea.overlaps(widgetRect)) return false;
 
-    // CLIP CHECK: Walk up the tree and intersect with all viewports
+    // Walk ancestors and honor the things that actually hide a widget:
+    //   - Offstage (laid out but not painted)
+    //   - zero Opacity
+    //   - clips (viewport, ClipRect/RRect/Oval/Path): intersect their bounds
     RenderObject? ancestor = renderBox.parent;
     while (ancestor != null) {
-      if (ancestor is RenderViewportBase) {
-        final Rect viewportGlobalRect = (ancestor as RenderBox).localToGlobal(Offset.zero) & (ancestor as RenderBox).size;
-        visibleArea = visibleArea.intersect(viewportGlobalRect);
-      } else if (ancestor is RenderBox) {
-        // Handle explicit clipping widgets if possible, 
-        // though Viewport is the primary concern for lists.
+      if (ancestor is RenderOffstage && ancestor.offstage) return false;
+      if (ancestor is RenderOpacity && ancestor.opacity == 0.0) return false;
+      if (_clipsChildren(ancestor) && ancestor is RenderBox) {
+        final clipRect = ancestor.localToGlobal(Offset.zero) & ancestor.size;
+        visibleArea = visibleArea.intersect(clipRect);
+        if (visibleArea.isEmpty) return false;
       }
       ancestor = ancestor.parent;
     }
 
-    // Now check if the widget significantly overlaps the final visible area.
-    // We use a small threshold or center point to be sure it's actually "seeable"
-    return visibleArea.overlaps(widgetRect);
+    return !visibleArea.intersect(widgetRect).isEmpty;
+  }
+
+  /// Whether [object] clips its children to its own bounds.
+  bool _clipsChildren(RenderObject object) {
+    return object is RenderViewportBase ||
+        object is RenderClipRect ||
+        object is RenderClipRRect ||
+        object is RenderClipOval ||
+        object is RenderClipPath;
   }
   
   Element? _findFirstDescendant(Element element, bool Function(Element) predicate) {
