@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'errors.dart';
@@ -62,13 +63,38 @@ class AutomationEngine {
 
   Future<void> _highlightAndTap(Element element) async {
     final renderBox = element.renderObject as RenderBox?;
-    if (renderBox != null) {
-      final position = renderBox.localToGlobal(renderBox.size.center(Offset.zero));
-      onInteraction?.call(position);
-      await Future.delayed(const Duration(milliseconds: 300));
+    if (renderBox == null || !renderBox.attached || !renderBox.hasSize) {
+      throw const NotActionableException('Target for tap has no attached, sized render box.');
     }
-    
-    _triggerTap(element.widget);
+    final position = renderBox.localToGlobal(renderBox.size.center(Offset.zero));
+    onInteraction?.call(position);
+    await Future.delayed(const Duration(milliseconds: 300));
+
+    // Dispatch a REAL tap: a synthetic pointer down/up routed through
+    // GestureBinding, so hit-testing and the gesture arena decide what handles
+    // it - exactly as if a finger touched the screen. Previously the widget's
+    // onPressed/onTap was invoked directly, which bypassed hit-testing (so a
+    // covered or IgnorePointer widget still "tapped") and the gesture arena.
+    await _dispatchTapAt(position, element);
+  }
+
+  int _pointerId = 0;
+
+  /// Sends a synthetic tap (pointer down then up) at [globalPosition] through
+  /// [GestureBinding], on the [FlutterView] that hosts [element].
+  Future<void> _dispatchTapAt(Offset globalPosition, Element element) async {
+    final binding = GestureBinding.instance;
+    final viewId = View.of(element).viewId;
+    final pointer = ++_pointerId;
+
+    binding.handlePointerEvent(
+      PointerDownEvent(viewId: viewId, pointer: pointer, position: globalPosition),
+    );
+    // Brief hold so the tap recognizer accepts the gesture on pointer-up.
+    await Future.delayed(const Duration(milliseconds: 50));
+    binding.handlePointerEvent(
+      PointerUpEvent(viewId: viewId, pointer: pointer, position: globalPosition),
+    );
   }
 
   /// Enters text into a TextField identified by [target].
@@ -269,32 +295,6 @@ class AutomationEngine {
     if (widget is GestureDetector) return widget.onTap != null;
     if (widget is ListTile) return widget.onTap != null;
     return false;
-  }
-
-  void _triggerTap(Widget widget) {
-    bool tapped = false;
-    
-    if (widget is ButtonStyleButton) {
-      if (widget.onPressed != null) { widget.onPressed!(); tapped = true; }
-    } else if (widget is MaterialButton) {
-      if (widget.onPressed != null) { widget.onPressed!(); tapped = true; }
-    } else if (widget is FloatingActionButton) {
-      if (widget.onPressed != null) { widget.onPressed!(); tapped = true; }
-    } else if (widget is IconButton) {
-      if (widget.onPressed != null) { widget.onPressed!(); tapped = true; }
-    } else if (widget is InkWell) {
-      if (widget.onTap != null) { widget.onTap!(); tapped = true; }
-    } else if (widget is InkResponse) {
-      if (widget.onTap != null) { widget.onTap!(); tapped = true; }
-    } else if (widget is GestureDetector) {
-      if (widget.onTap != null) { widget.onTap!(); tapped = true; }
-    } else if (widget is ListTile) {
-      if (widget.onTap != null) { widget.onTap!(); tapped = true; }
-    }
-    
-    if (!tapped) {
-       throw NotActionableException('Failed to tap ${widget.runtimeType}: onPressed/onTap is null or the widget type is not handled.');
-    }
   }
 
   bool _isVisible(Element element) {
