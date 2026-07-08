@@ -49,7 +49,9 @@ class AutomationController {
     final stopwatch = Stopwatch()..start();
     
     // Reset steps
-    for (var s in test.steps) s.status = TestStatus.pending;
+    for (var s in test.steps) {
+      s.status = TestStatus.pending;
+    }
 
     bool passed = true;
     for (final step in test.steps) {

@@ -462,7 +462,9 @@ class _AutomationInspectorOverlayState extends State<AutomationInspectorOverlay>
       _isExpanded = false;
       _isTestBoxMinimized = false;
       _highlightPosition = null;
-      for (var s in test.steps) s.status = TestStatus.pending;
+      for (var s in test.steps) {
+        s.status = TestStatus.pending;
+      }
     });
 
     final stopwatch = Stopwatch()..start();

@@ -42,9 +42,7 @@ class AutomationEngine {
       });
       
       // 3. If still not found, Look DOWN (legacy behavior)
-      if (tappableElement == null) {
-        tappableElement = _findFirstDescendant(element, (e) => _isTappable(e) && _isVisible(e) && _hasTapCallback(e.widget));
-      }
+      tappableElement ??= _findFirstDescendant(element, (e) => _isTappable(e) && _isVisible(e) && _hasTapCallback(e.widget));
     }
 
     final tappable = tappableElement;
@@ -311,7 +309,7 @@ class AutomationEngine {
     if (!visibleArea.overlaps(widgetRect)) return false;
 
     // CLIP CHECK: Walk up the tree and intersect with all viewports
-    RenderObject? ancestor = renderBox.parent as RenderObject?;
+    RenderObject? ancestor = renderBox.parent;
     while (ancestor != null) {
       if (ancestor is RenderViewportBase) {
         final Rect viewportGlobalRect = (ancestor as RenderBox).localToGlobal(Offset.zero) & (ancestor as RenderBox).size;

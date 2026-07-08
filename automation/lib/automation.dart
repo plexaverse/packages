@@ -1,6 +1,5 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'src/test_registry.dart';
 import 'src/inspector_ui.dart';
 
 export 'src/test_registry.dart';
