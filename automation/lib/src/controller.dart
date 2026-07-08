@@ -1,8 +1,14 @@
 import 'package:flutter/foundation.dart';
-import 'test_registry.dart';
-import 'reporter.dart';
 
-/// Controls test execution programmatically (e.g., for CI/CD or Headless mode).
+import 'reporter.dart';
+import 'runner.dart';
+import 'test_registry.dart';
+
+/// Controls test execution programmatically (e.g. for CI/headless mode).
+///
+/// This is a thin front-end over [TestRunner]: it runs the registered tests
+/// with the given configuration, streams progress to [TestReporter], and
+/// returns whether everything passed.
 class AutomationController {
   static final AutomationController instance = AutomationController._();
   AutomationController._();
@@ -10,69 +16,77 @@ class AutomationController {
   bool _isRunning = false;
   bool get isRunning => _isRunning;
 
-  /// Runs all registered tests sequentially.
-  /// 
-  /// Returns [true] if all tests passed, [false] otherwise.
-  Future<bool> runAllTests({Duration delayBetweenTests = const Duration(seconds: 1)}) async {
+  /// Runs all registered tests sequentially and returns true iff all passed.
+  Future<bool> runAllTests({
+    Duration delayBetweenTests = const Duration(seconds: 1),
+    Duration defaultTimeout = const Duration(seconds: 30),
+    int retries = 0,
+    Set<String> includeTags = const {},
+    Set<String> excludeTags = const {},
+    Pattern? grep,
+  }) async {
     if (_isRunning) {
       debugPrint('[Automation] Tests are already running.');
       return false;
     }
-    
+
     _isRunning = true;
-    bool allTestsPassed = true;
-    
-    final tests = AutomationRegistry.instance.tests;
-    debugPrint('[Automation] Starting execution of ${tests.length} tests...');
+    try {
+      final runner = TestRunner(
+        config: TestRunConfig(
+          delayBetweenTests: delayBetweenTests,
+          defaultTimeout: defaultTimeout,
+          retries: retries,
+          includeTags: includeTags,
+          excludeTags: excludeTags,
+          grep: grep,
+        ),
+        listeners: [_ReporterBridge(TestReporter.instance)],
+      );
 
-    for (final test in tests) {
-      final success = await _runSingleTest(test);
-      if (!success) allTestsPassed = false;
-      await Future.delayed(delayBetweenTests);
+      final results = await runner.run(
+        AutomationRegistry.instance.tests,
+        hooks: AutomationRegistry.instance.hooks,
+      );
+
+      final passed = allPassed(results);
+      final flaky = results.where((r) => r.flaky).length;
+      debugPrint('[Automation] ===================================');
+      debugPrint('[Automation] All Tests Completed.');
+      debugPrint('[Automation] Passed: ${results.where((r) => r.passed).length}/${results.length}');
+      if (flaky > 0) debugPrint('[Automation] Flaky (passed on retry): $flaky');
+      debugPrint('[Automation] Result: ${passed ? "SUCCESS" : "FAILURE"}');
+      debugPrint('[Automation] ===================================');
+      return passed;
+    } finally {
+      _isRunning = false;
     }
+  }
+}
 
-    _isRunning = false;
-    
-    // Final Report
-    debugPrint('[Automation] ===================================');
-    debugPrint('[Automation] All Tests Completed.');
-    debugPrint('[Automation] Passed: ${TestReporter.instance.results.where((r) => r.success).length}');
-    debugPrint('[Automation] Failed: ${TestReporter.instance.results.where((r) => !r.success).length}');
-    debugPrint('[Automation] Result: ${allTestsPassed ? "SUCCESS" : "FAILURE"}');
-    debugPrint('[Automation] ===================================');
-    
-    return allTestsPassed;
+/// Bridges runner progress to the existing [TestReporter] callbacks.
+class _ReporterBridge extends TestRunListener {
+  final TestReporter reporter;
+  _ReporterBridge(this.reporter);
+
+  @override
+  void onTestStart(TestCase test) => reporter.onTestStart(test);
+
+  @override
+  void onStepFinished(TestCase test, StepResult result) {
+    if (result.passed) {
+      reporter.onTestStepPassed(test, result.step, result.duration);
+    } else {
+      reporter.onTestStepFailed(
+        test,
+        result.step,
+        result.error ?? 'unknown error',
+        result.stackTrace ?? StackTrace.current,
+      );
+    }
   }
 
-  Future<bool> _runSingleTest(TestCase test) async {
-    TestReporter.instance.onTestStart(test);
-    final stopwatch = Stopwatch()..start();
-    
-    // Reset steps
-    for (var s in test.steps) {
-      s.status = TestStatus.pending;
-    }
-
-    bool passed = true;
-    for (final step in test.steps) {
-      step.status = TestStatus.running;
-      final stepWatch = Stopwatch()..start();
-      try {
-        await step.action();
-        stepWatch.stop();
-        step.status = TestStatus.passed;
-        TestReporter.instance.onTestStepPassed(test, step, stepWatch.elapsed);
-      } catch (e, stack) {
-        stepWatch.stop();
-        step.status = TestStatus.failed;
-        TestReporter.instance.onTestStepFailed(test, step, e, stack);
-        passed = false;
-        break;
-      }
-    }
-    
-    stopwatch.stop();
-    TestReporter.instance.onTestComplete(test, passed, stopwatch.elapsed);
-    return passed;
-  }
+  @override
+  void onTestFinished(TestResult result) =>
+      reporter.onTestComplete(result.test, result.passed, result.duration);
 }
