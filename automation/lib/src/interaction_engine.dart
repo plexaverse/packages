@@ -97,8 +97,14 @@ class AutomationEngine {
     );
   }
 
-  /// Enters text into a TextField identified by [target].
-  Future<void> enterText(dynamic target, String text, {Duration timeout = const Duration(seconds: 5)}) async {
+  /// Enters [text] into the text field identified by [target].
+  ///
+  /// The text is delivered through the field's real editing pipeline (the same
+  /// entry point the platform IME uses), so `inputFormatters`, `onChanged`, and
+  /// the selection/cursor are all honoured. Set [submit] to also fire the
+  /// field's submit action (`onSubmitted`/`onEditingComplete`).
+  Future<void> enterText(dynamic target, String text,
+      {Duration timeout = const Duration(seconds: 5), bool submit = false}) async {
     final finder = _toFinder(target);
     await waitFor(finder, timeout: timeout);
 
@@ -111,20 +117,35 @@ class AutomationEngine {
     final editable = editableElement;
     if (editable == null) throw NotActionableException('No editable text field found inside $finder. Ensure you are targeting a TextField or TextFormField.');
 
-    await _highlightAndEnterText(editable, text);
+    await _highlightAndEnterText(editable, text, submit: submit);
   }
 
-  Future<void> _highlightAndEnterText(Element element, String text) async {
-     final renderBox = element.renderObject as RenderBox?;
-    if (renderBox != null) {
-      final position = renderBox.localToGlobal(renderBox.size.center(Offset.zero));
-      onInteraction?.call(position);
-      await Future.delayed(const Duration(milliseconds: 300));
+  Future<void> _highlightAndEnterText(Element element, String text, {bool submit = false}) async {
+    final renderBox = element.renderObject as RenderBox?;
+    if (renderBox == null || !renderBox.attached || !renderBox.hasSize) {
+      throw const NotActionableException('Editable field has no attached, sized render box.');
     }
-    
-    final widget = element.widget as EditableText;
-    widget.controller.text = text;
-    widget.onChanged?.call(text);
+    final position = renderBox.localToGlobal(renderBox.size.center(Offset.zero));
+    onInteraction?.call(position);
+    await Future.delayed(const Duration(milliseconds: 300));
+
+    // Focus the field (opens the real input connection) and deliver the text
+    // via EditableTextState.updateEditingValue - the platform IME's own entry
+    // point - so inputFormatters run, onChanged fires, and the caret is placed
+    // at the end. This replaces the previous `controller.text = text`, which
+    // bypassed all of that.
+    final state = (element as StatefulElement).state as EditableTextState;
+    state.widget.focusNode.requestFocus();
+    await Future.delayed(const Duration(milliseconds: 50));
+
+    state.updateEditingValue(TextEditingValue(
+      text: text,
+      selection: TextSelection.collapsed(offset: text.length),
+    ));
+
+    if (submit) {
+      state.performAction(TextInputAction.done);
+    }
   }
 
   /// Scrolls until the [target] is visible.
