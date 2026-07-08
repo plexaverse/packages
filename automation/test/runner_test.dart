@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:automation/automation.dart';
@@ -103,5 +104,26 @@ void main() {
     await TestRunner().run(tests, hooks: hooks);
 
     expect(log, ['cleanup']);
+  });
+
+  test('a failure captures a screenshot via the hook; a pass does not', () async {
+    final png = Uint8List.fromList([0x89, 0x50, 0x4E, 0x47, 1, 2, 3]);
+    var captures = 0;
+    final config = TestRunConfig(screenshotOnFailure: () async {
+      captures++;
+      return png;
+    });
+    final tests = [
+      _case('ok', [_step('s', () {})]),
+      _case('bad', [_step('boom', () => throw StateError('x'))]),
+    ];
+
+    final results = await TestRunner(config: config).run(tests);
+    final ok = results.firstWhere((r) => r.test.name == 'ok');
+    final bad = results.firstWhere((r) => r.test.name == 'bad');
+
+    expect(ok.screenshot, isNull);
+    expect(bad.screenshot, png);
+    expect(captures, 1); // captured only on the failing test
   });
 }

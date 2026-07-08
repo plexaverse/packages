@@ -4,6 +4,7 @@ import 'test_registry.dart';
 import 'interaction_engine.dart';
 import 'reporter.dart';
 import 'runner.dart';
+import 'screenshot.dart';
 
 class AutomationInspectorOverlay extends StatefulWidget {
   const AutomationInspectorOverlay({super.key});
@@ -473,9 +474,10 @@ class _AutomationInspectorOverlayState extends State<AutomationInspectorOverlay>
     // watchable step delay keeps the on-device run easy to follow. The reporter
     // records history; the inline listener refreshes the UI as steps progress.
     final runner = TestRunner(
-      config: const TestRunConfig(
-        stepDelay: Duration(milliseconds: 2500),
-        defaultTimeout: Duration(seconds: 30),
+      config: TestRunConfig(
+        stepDelay: const Duration(milliseconds: 2500),
+        defaultTimeout: const Duration(seconds: 30),
+        screenshotOnFailure: () => AutomationScreenshot.capture(),
       ),
       listeners: [
         TestReporter.instance,

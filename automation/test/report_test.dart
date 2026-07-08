@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:automation/automation.dart';
@@ -23,6 +24,7 @@ List<TestResult> _sample() {
       attempts: 2,
       failedStep: failStep,
       error: 'boom & <crash>',
+      screenshot: Uint8List.fromList([0x89, 0x50, 0x4E, 0x47, 10, 20, 30]),
       steps: [
         StepResult(
           step: failStep,
@@ -69,5 +71,17 @@ void main() {
     expect(html, contains('A passes'));
     expect(html, contains('B fails'));
     expect(html, contains('1 / 2 passed'));
+  });
+
+  test('HTML embeds a base64 screenshot for a failure that has one', () {
+    final html = TestReportFormatter.toHtml(_sample());
+    expect(html, contains('data:image/png;base64,'));
+  });
+
+  test('JSON flags whether each test has a screenshot', () {
+    final json = jsonDecode(TestReportFormatter.toJson(_sample())) as Map<String, dynamic>;
+    final tests = json['tests'] as List;
+    expect(tests[0]['hasScreenshot'], isFalse);
+    expect(tests[1]['hasScreenshot'], isTrue);
   });
 }

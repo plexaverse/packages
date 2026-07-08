@@ -30,6 +30,7 @@ class TestReportFormatter {
             'attempts': r.attempts,
             'durationMs': r.duration.inMilliseconds,
             'tags': r.test.tags.toList(),
+            'hasScreenshot': r.screenshot != null,
             if (r.failedStep != null) 'failedStep': r.failedStep!.description,
             if (r.error != null) 'error': r.error.toString(),
             'steps': [
@@ -95,13 +96,23 @@ class TestReportFormatter {
           ? (r.flaky ? 'FLAKY' : 'PASS')
           : (r.outcome == TestOutcome.timedOut ? 'TIMEOUT' : 'FAIL');
       final color = r.passed ? (r.flaky ? '#c69a24' : '#3f8f6b') : '#c1362f';
+      final detail = [
+        if (r.failedStep != null) 'at step: ${_text(r.failedStep!.description)}',
+        if (r.error != null) _text(r.error.toString()),
+      ].join('<br>');
       rows.writeln('<tr>'
           '<td style="color:$color;font-weight:700">$status</td>'
           '<td>${_text(r.test.name)}</td>'
           '<td>${r.duration.inMilliseconds}ms</td>'
           '<td>${r.attempts}</td>'
-          '<td>${r.failedStep != null ? _text(r.failedStep!.description) : ''}</td>'
+          '<td>$detail</td>'
           '</tr>');
+      if (r.screenshot != null) {
+        final b64 = base64Encode(r.screenshot!);
+        rows.writeln('<tr><td></td><td colspan="4">'
+            '<img alt="failure screenshot" style="max-width:360px;border:1px solid #ddd" '
+            'src="data:image/png;base64,$b64"></td></tr>');
+      }
     }
     return '<!doctype html><html><head><meta charset="utf-8"><title>${_text(title)}</title>'
         '<style>body{font-family:sans-serif;margin:24px}table{border-collapse:collapse;width:100%}'

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'test_registry.dart';
 
@@ -35,6 +36,9 @@ class TestResult {
   final Object? error;
   final StackTrace? stackTrace;
 
+  /// PNG bytes captured at the moment of failure, if a capturer was configured.
+  final Uint8List? screenshot;
+
   const TestResult({
     required this.test,
     required this.outcome,
@@ -44,6 +48,7 @@ class TestResult {
     this.failedStep,
     this.error,
     this.stackTrace,
+    this.screenshot,
   });
 
   bool get passed => outcome == TestOutcome.passed;
@@ -106,6 +111,11 @@ class TestRunConfig {
   /// Pause inserted between tests.
   final Duration delayBetweenTests;
 
+  /// If set, called when a test fails/times out to capture a screenshot
+  /// (PNG bytes), attached to the [TestResult]. Kept as a callback so the
+  /// runner stays free of any Flutter/UI dependency.
+  final Future<Uint8List?> Function()? screenshotOnFailure;
+
   const TestRunConfig({
     this.defaultTimeout = const Duration(seconds: 30),
     this.retries = 0,
@@ -114,6 +124,7 @@ class TestRunConfig {
     this.grep,
     this.stepDelay = Duration.zero,
     this.delayBetweenTests = Duration.zero,
+    this.screenshotOnFailure,
   });
 }
 
@@ -206,13 +217,24 @@ class TestRunner {
         outcome = TestOutcome.failed;
         error ??= e;
         stack ??= st;
-      } finally {
-        // afterEach must run even if the test failed or timed out.
+      }
+
+      // Capture a screenshot at the failure point, BEFORE teardown can change
+      // the screen. Capture failures must not mask the test outcome.
+      Uint8List? screenshot;
+      if (outcome != TestOutcome.passed && config.screenshotOnFailure != null) {
         try {
-          await _runHooks(hooks.afterEach);
+          screenshot = await config.screenshotOnFailure!();
         } catch (_) {
-          // A teardown failure should not mask the test outcome.
+          // Ignore capture failures.
         }
+      }
+
+      // afterEach always runs, even on failure or timeout.
+      try {
+        await _runHooks(hooks.afterEach);
+      } catch (_) {
+        // A teardown failure should not mask the test outcome.
       }
 
       if (outcome == TestOutcome.passed) {
@@ -235,6 +257,7 @@ class TestRunner {
         failedStep: failedStep,
         error: error,
         stackTrace: stack,
+        screenshot: screenshot,
       );
     }
 

@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'config.dart';
 import 'reporter.dart';
 import 'runner.dart';
+import 'screenshot.dart';
 import 'test_registry.dart';
 
 /// Controls test execution programmatically (e.g. for CI/headless mode).
@@ -25,6 +26,7 @@ class AutomationController {
     Set<String> includeTags = const {},
     Set<String> excludeTags = const {},
     Pattern? grep,
+    bool captureScreenshotsOnFailure = true,
   }) async {
     if (_isRunning) {
       debugPrint('[Automation] Tests are already running.');
@@ -46,6 +48,7 @@ class AutomationController {
           includeTags: includeTags,
           excludeTags: excludeTags,
           grep: grep,
+          screenshotOnFailure: captureScreenshotsOnFailure ? () => AutomationScreenshot.capture() : null,
         ),
         listeners: [TestReporter.instance],
       );
