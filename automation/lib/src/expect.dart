@@ -5,15 +5,28 @@ import 'interaction_engine.dart';
 class Expect {
   const Expect._();
 
-  /// Verifies that the [target] widget is continuously present and visible.
-  /// 
-  /// Throws an exception if the widget is not found within [timeout].
+  /// Verifies that the [target] widget is present **and actually visible**
+  /// (attached, sized, on-screen, and not clipped away by a scroll viewport).
+  ///
+  /// Polls every 200ms until the target becomes visible or [timeout] elapses.
+  /// The failure message distinguishes "never found" from "found but not
+  /// visible" so the cause is clear.
   static Future<void> visible(dynamic target, {Duration timeout = const Duration(seconds: 5)}) async {
-    try {
-      await AutomationEngine.instance.waitFor(target, timeout: timeout);
-    } catch (e) {
-      throw Exception('Expected $target to be visible, but it was not found within $timeout.');
+    final engine = AutomationEngine.instance;
+    final finder = engine.toFinderPublic(target);
+    final endTime = DateTime.now().add(timeout);
+
+    while (DateTime.now().isBefore(endTime)) {
+      final element = engine.findFirstElementPublic(finder);
+      if (element != null && engine.isVisiblePublic(element)) return;
+      await Future.delayed(const Duration(milliseconds: 200));
     }
+
+    final element = engine.findFirstElementPublic(finder);
+    if (element == null) {
+      throw Exception('Expected $target to be visible, but no matching widget was found within $timeout.');
+    }
+    throw Exception('Expected $target to be visible, but the matching widget was off-screen or clipped after $timeout.');
   }
 
   /// Verifies that the [target] widget is NOT present on the screen.
