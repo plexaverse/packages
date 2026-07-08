@@ -27,3 +27,8 @@ migrate_working_dir/
 **/doc/api/
 .dart_tool/
 build/
+
+# Ad-hoc analyzer output dumps (never commit these)
+analysis_final.txt
+analysis*.txt
+lib/src/analysis.txt
