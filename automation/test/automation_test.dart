@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:automation/automation.dart';
+import 'package:in_app_automation/in_app_automation.dart';
 
 void main() {
   test('Registering a test adds it to the registry', () {

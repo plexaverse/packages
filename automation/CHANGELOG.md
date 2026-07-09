@@ -31,7 +31,7 @@ filtering. The inspector and headless controller now share it.
 
 **Reports & screenshots** — `TestReportFormatter` (JSON/JUnit/HTML). Screenshots
 are captured automatically on failure and attached to the result (embedded in
-the HTML report); `TestArtifactWriter` (via `package:automation/io.dart`) writes
+the HTML report); `TestArtifactWriter` (via `package:in_app_automation/io.dart`) writes
 reports + a PNG per failed test to disk. `AutomationScreenshot.capture()` for
 manual capture.
 

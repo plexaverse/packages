@@ -1,11 +1,11 @@
-# Integrating the `automation` package into a Flutter project
+# Integrating the `in_app_automation` package into a Flutter project
 
 This document is an **actionable checklist**. Work through the steps in order and
 apply each file change to the target app. Every step names the file to edit and
 the exact change to make. Code uses the real v0.2.0 API.
 
 > Audience: the app you want to test (the "consumer project"), not the
-> `automation` package itself.
+> `in_app_automation` package itself.
 
 ---
 
@@ -25,14 +25,14 @@ the exact change to make. Code uses the real v0.2.0 API.
 
 ## 1. Add the dependency — `pubspec.yaml`
 
-Add `automation` under `dependencies`. Use whichever source applies:
+Add `in_app_automation` under `dependencies`. Use whichever source applies:
 
 ```yaml
 dependencies:
   flutter:
     sdk: flutter
   # Local path (monorepo / not yet published):
-  automation:
+  in_app_automation:
     path: ../automation
   # …or from git:
   # automation:
@@ -64,7 +64,7 @@ binary.
 ```dart
 import 'package:flutter/foundation.dart'; // kDebugMode
 import 'package:flutter/material.dart';
-import 'package:automation/automation.dart';
+import 'package:in_app_automation/in_app_automation.dart';
 
 import 'automation/app_tests.dart'; // created in step 3
 
@@ -91,7 +91,7 @@ Keep scenarios in one place. Register before `runApp`. Use `tags`, `timeout`,
 and `retries` as needed, and hooks for isolation.
 
 ```dart
-import 'package:automation/automation.dart';
+import 'package:in_app_automation/in_app_automation.dart';
 
 void registerAutomationTests() {
   final registry = AutomationRegistry.instance;
@@ -197,8 +197,8 @@ report artifacts.
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
-import 'package:automation/automation.dart';
-import 'package:automation/io.dart'; // TestArtifactWriter (dart:io)
+import 'package:in_app_automation/in_app_automation.dart';
+import 'package:in_app_automation/io.dart'; // TestArtifactWriter (dart:io)
 
 import 'package:<your_app>/main.dart' as app; // your root widget
 import 'package:<your_app>/automation/app_tests.dart';
@@ -330,7 +330,7 @@ build/automation-reports/
 
 ## Completion checklist
 
-- [ ] `automation` (and `integration_test`) added to `pubspec.yaml`; `pub get` run
+- [ ] `in_app_automation` (and `integration_test`) added to `pubspec.yaml`; `pub get` run
 - [ ] root widget wrapped in `AutomationInspectorWrapper`
 - [ ] `registerAutomationTests()` called inside `if (kDebugMode)` before `runApp`
 - [ ] `lib/automation/app_tests.dart` created with scenarios (+ `beforeEach` reset)

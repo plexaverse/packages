@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart' hide find;
-import 'package:automation/automation.dart';
+import 'package:in_app_automation/in_app_automation.dart';
 
 void main() {
   testWidgets('returns immediately when the target is already visible', (tester) async {

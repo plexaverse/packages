@@ -2,8 +2,8 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:automation/automation.dart';
-import 'package:automation/io.dart';
+import 'package:in_app_automation/in_app_automation.dart';
+import 'package:in_app_automation/io.dart';
 
 void main() {
   test('writes JSON/JUnit/HTML reports and a PNG for a failed test', () async {

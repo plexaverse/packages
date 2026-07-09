@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:automation/automation.dart' as auto;
+import 'package:in_app_automation/in_app_automation.dart' as auto;
 
 void main() {
   Element root() => WidgetsBinding.instance.rootElement!;

@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:automation/automation.dart';
+import 'package:in_app_automation/in_app_automation.dart';
 import 'package:go_router/go_router.dart';
 import 'app_tests.dart';
 

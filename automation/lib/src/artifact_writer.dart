@@ -7,7 +7,7 @@ import 'runner.dart';
 /// PNG per failed test that captured a screenshot.
 ///
 /// Uses `dart:io`, so it is NOT web-safe and lives behind the separate
-/// `package:automation/io.dart` entrypoint rather than the core library.
+/// `package:in_app_automation/io.dart` entrypoint rather than the core library.
 class TestArtifactWriter {
   const TestArtifactWriter._();
 

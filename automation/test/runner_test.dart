@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:automation/automation.dart';
+import 'package:in_app_automation/in_app_automation.dart';
 
 TestStep _step(String description, FutureOr<void> Function() action) =>
     TestStep(description: description, action: action);

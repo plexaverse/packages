@@ -1,6 +1,6 @@
 # Automation 🚀
 
-`automation` is an in-app UI testing tool for Flutter. You register tests in
+`in_app_automation` is an in-app UI testing tool for Flutter. You register tests in
 Dart, then run them either from an on-device inspector overlay or headlessly in
 CI. Actions drive **real input** — synthetic pointer and IME events routed
 through Flutter's gesture and text pipelines — so a green result means a user
@@ -48,14 +48,14 @@ could actually perform the action.
 ## Installation
 
 ```bash
-flutter pub add automation
+flutter pub add in_app_automation
 ```
 
 Or add it to `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  automation: ^0.2.0
+  in_app_automation: ^0.2.0
 ```
 
 ---
@@ -77,7 +77,7 @@ package's requirements — add the dependency, wrap the root widget in
 entrypoint and CI workflow.
 
 > Example prompt:
-> *"Read `doc/INTEGRATION.md` from the `automation` package and apply it to this
+> *"Read `doc/INTEGRATION.md` from the `in_app_automation` package and apply it to this
 > project. Work through its checklist: update pubspec, wrap my app in
 > `AutomationInspectorWrapper`, register tests in `kDebugMode`, add `Key`s to the
 > widgets I'll drive, and add the `integration_test` entrypoint and CI workflow.
@@ -109,7 +109,7 @@ below.
 Wrap your app with `AutomationInspectorWrapper`:
 
 ```dart
-import 'package:automation/automation.dart';
+import 'package:in_app_automation/in_app_automation.dart';
 
 void main() {
   runApp(AutomationInspectorWrapper(child: const MyApp()));
@@ -273,7 +273,7 @@ Or write the whole set to disk (reports + a PNG per failed test) via the
 IO entrypoint:
 
 ```dart
-import 'package:automation/io.dart';
+import 'package:in_app_automation/io.dart';
 
 await AutomationController.instance.runAllTests();
 await TestArtifactWriter.write(TestReporter.instance.detailedResults);

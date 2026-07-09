@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:automation/automation.dart';
+import 'package:in_app_automation/in_app_automation.dart';
 
 void registerAppTests() {
   

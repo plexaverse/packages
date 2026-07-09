@@ -2,7 +2,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:automation/automation.dart';
+import 'package:in_app_automation/in_app_automation.dart';
 
 void main() {
   testWidgets('captureScreenshot returns PNG bytes of the app content', (tester) async {
