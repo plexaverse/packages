@@ -1,0 +1,33 @@
+# NOTE: when a .pubignore exists, pub uses it INSTEAD of .gitignore, so the
+# usual ignores must be repeated here.
+
+# Standard Dart/Flutter build output and lockfile.
+.dart_tool/
+build/
+pubspec.lock
+**/doc/api/
+
+# Keep the example's Dart code (for the pub.dev example tab) but drop its
+# platform scaffolding and generated output.
+example/android/
+example/ios/
+example/linux/
+example/macos/
+example/windows/
+example/web/
+example/build/
+example/.dart_tool/
+example/.metadata
+example/.gitignore
+example/analysis_options.yaml
+example/pubspec.lock
+
+# Dev-environment files that must not ship in the package.
+*.iml
+.idea/
+.agent/
+.claude/
+
+# Ad-hoc logs / analyzer dumps.
+*.log
+analysis*.txt
