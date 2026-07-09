@@ -14,6 +14,7 @@ could actually perform the action.
 
 - [What it does](#what-it-does)
 - [Installation](#installation)
+- [Set it up with an AI assistant](#set-it-up-with-an-ai-assistant)
 - [Setup](#setup)
 - [Writing your first test](#writing-your-first-test)
 - [Finders](#finders)
@@ -46,15 +47,60 @@ could actually perform the action.
 
 ## Installation
 
-Add it to your app's `pubspec.yaml`:
+```bash
+flutter pub add automation
+```
+
+Or add it to `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  automation:
-    path: path/to/automation
+  automation: ^0.2.0
 ```
 
-Then `flutter pub get`.
+---
+
+## Set it up with an AI assistant
+
+This package is designed to be adopted with an AI coding assistant (Claude Code,
+Cursor, Copilot, etc.). The guides in [`doc/`](doc/) are written as
+step-by-step, checklist-style specs, so an assistant can read them and do the
+work in your project. Two steps:
+
+### 1. Let the AI wire the package into your app
+
+Point the assistant at [`doc/INTEGRATION.md`](doc/INTEGRATION.md) and ask it to
+apply the guide to your project. It will edit your **core files** to meet the
+package's requirements — add the dependency, wrap the root widget in
+`AutomationInspectorWrapper`, register tests inside `if (kDebugMode)`, add stable
+`Key`s to the widgets your tests will target, and create the `integration_test`
+entrypoint and CI workflow.
+
+> Example prompt:
+> *"Read `doc/INTEGRATION.md` from the `automation` package and apply it to this
+> project. Work through its checklist: update pubspec, wrap my app in
+> `AutomationInspectorWrapper`, register tests in `kDebugMode`, add `Key`s to the
+> widgets I'll drive, and add the `integration_test` entrypoint and CI workflow.
+> Show me each file change."*
+
+### 2. Let the AI write your user-flow tests
+
+Point the assistant at [`doc/USER_FLOWS.md`](doc/USER_FLOWS.md) and describe the
+flows you want. Using the cookbook's patterns, it will create the flow test
+files (e.g. `lib/automation/app_tests.dart`) as `registerTest(...)` scenarios
+that reference your app's real keys and screens.
+
+> Example prompt:
+> *"Read `doc/USER_FLOWS.md`. Based on my screens (login, dashboard, profile,
+> cart), write user-flow tests for: login → dashboard → profile; add-to-cart →
+> checkout → confirmation; invalid login shows an error. Follow the cookbook
+> patterns, reuse a shared `login()` sub-flow, and reset state in `beforeEach`."*
+
+**Tips:** keep `Key` names stable (they're the test contract), review what the
+assistant generates, and finish with `flutter test integration_test`.
+
+Prefer to do it by hand? Follow the same guides yourself — the manual steps are
+below.
 
 ---
 
