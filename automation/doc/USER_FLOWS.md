@@ -5,9 +5,10 @@ so state and navigation carry from one step to the next. This is a cookbook of
 patterns for the flows a QA tester typically covers. Copy a recipe, swap in your
 `Key`s / texts, register it.
 
-> Prerequisite: the app is already integrated (see `INTEGRATION.md`) — wrapped in
-> `AutomationInspectorWrapper`, tests registered in `if (kDebugMode)`, and target
-> widgets carry stable `Key`s.
+> Prerequisite: the app is already integrated (see [INTEGRATION.md](INTEGRATION.md)) —
+> wrapped in `AutomationInspectorWrapper`, tests registered in `if (kDebugMode)`,
+> and target widgets carry stable `Key`s. For the API reference, see the
+> [README](../README.md).
 
 ---
 

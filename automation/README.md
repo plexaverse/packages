@@ -6,6 +6,8 @@ CI. Actions drive **real input** — synthetic pointer and IME events routed
 through Flutter's gesture and text pipelines — so a green result means a user
 could actually perform the action.
 
+**Guides:** [Integrating into your app](doc/INTEGRATION.md) · [User-flow cookbook](doc/USER_FLOWS.md)
+
 ---
 
 ## Table of Contents

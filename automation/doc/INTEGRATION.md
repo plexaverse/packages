@@ -340,3 +340,9 @@ build/automation-reports/
 - [ ] `build/automation-reports/` git-ignored
 - [ ] release-mode expectations understood (`AutomationConfig.enable()` only if needed)
 - [ ] `flutter analyze` clean; `flutter test integration_test` green on a device
+
+---
+
+**Next:** with the project wired up, see the
+[user-flow cookbook](USER_FLOWS.md) for copy-paste patterns (auth, navigation,
+forms, lists, CRUD, dialogs, end-to-end). API reference: the [README](../README.md).
