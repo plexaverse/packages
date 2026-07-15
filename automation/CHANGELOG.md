@@ -1,3 +1,12 @@
+## 0.2.1
+
+- **Fix:** the on-device inspector overlay no longer blocks taps on the app
+  beneath it. The actionability check and real pointer dispatch hit-test the
+  whole view, so the overlay (wand button / running-test panel) could sit over
+  an app widget and make it report `NotActionableException`. The overlay now
+  drops out of hit-testing while the engine is tapping, so taps reach the app.
+  Genuine app-owned overlays still (correctly) block.
+
 ## 0.2.0
 
 Real-input engine, a production-grade runner, and CI. Pre-1.0, so some APIs
