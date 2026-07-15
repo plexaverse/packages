@@ -12,6 +12,13 @@ class AutomationEngine {
   /// Callback for when an interaction occurs (used for UI highlighting).
   void Function(Offset position)? onInteraction;
 
+  /// While true, the inspector overlay makes itself transparent to hit-testing
+  /// so the engine's synthetic taps reach the app beneath it. The overlay is
+  /// test infrastructure, not part of the app under test, so it must never
+  /// block a tap. Set automatically for the duration of [tap]; read live in the
+  /// overlay's hit-test, so no rebuild is needed.
+  bool suppressOverlayHitTest = false;
+
   /// Verbose diagnostics, gated by [AutomationConfig.verboseLogging].
   void _log(String message) {
     if (AutomationConfig.verboseLogging) debugPrint('[Automation] $message');
@@ -49,17 +56,23 @@ class AutomationEngine {
     final finder = _toFinder(target);
     final deadline = DateTime.now().add(timeout);
 
-    AutomationException lastReason = ElementNotFoundException('No widget found for $finder.');
-    while (true) {
-      final actionable = _resolveActionableTap(finder, (reason) => lastReason = reason);
-      if (actionable != null) {
-        await _highlightAndTap(actionable);
-        return;
+    // Hide our own overlay from hit-testing so it can't obscure the target.
+    suppressOverlayHitTest = true;
+    try {
+      AutomationException lastReason = ElementNotFoundException('No widget found for $finder.');
+      while (true) {
+        final actionable = _resolveActionableTap(finder, (reason) => lastReason = reason);
+        if (actionable != null) {
+          await _highlightAndTap(actionable);
+          return;
+        }
+        if (!DateTime.now().isBefore(deadline)) {
+          throw lastReason;
+        }
+        await Future.delayed(const Duration(milliseconds: 100));
       }
-      if (!DateTime.now().isBefore(deadline)) {
-        throw lastReason;
-      }
-      await Future.delayed(const Duration(milliseconds: 100));
+    } finally {
+      suppressOverlayHitTest = false;
     }
   }
 

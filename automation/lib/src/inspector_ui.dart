@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'dart:ui';
 import 'test_registry.dart';
 import 'interaction_engine.dart';
@@ -68,6 +69,12 @@ class _AutomationInspectorOverlayState extends State<AutomationInspectorOverlay>
 
     final bool isLeft = _buttonPosition.dx < _screenSize!.width / 2;
 
+    // Wrap in a gate that drops out of hit-testing while the engine is tapping,
+    // so the overlay never blocks the app it is driving.
+    return _OverlayPointerGate(child: _buildOverlayStack(isLeft));
+  }
+
+  Widget _buildOverlayStack(bool isLeft) {
     return Stack(
       children: [
         _buildHighlightRipple(),
@@ -516,5 +523,24 @@ class _InspectorRunListener extends TestRunListener {
 
   @override
   void onStepFinished(TestCase test, StepResult result) => onStepDone();
+}
+
+/// Wraps the inspector overlay so it drops out of hit-testing while the engine
+/// is actuating ([AutomationEngine.suppressOverlayHitTest]). The flag is read
+/// live inside [hitTest], so the overlay stops blocking the app instantly - no
+/// rebuild or extra frame required.
+class _OverlayPointerGate extends SingleChildRenderObjectWidget {
+  const _OverlayPointerGate({required Widget super.child});
+
+  @override
+  _RenderOverlayPointerGate createRenderObject(BuildContext context) => _RenderOverlayPointerGate();
+}
+
+class _RenderOverlayPointerGate extends RenderProxyBox {
+  @override
+  bool hitTest(BoxHitTestResult result, {required Offset position}) {
+    if (AutomationEngine.instance.suppressOverlayHitTest) return false;
+    return super.hitTest(result, position: position);
+  }
 }
 
